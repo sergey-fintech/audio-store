@@ -1,0 +1,40 @@
+<svg width="300" height="400" xmlns="http://www.w3.org/2000/svg">
+  <!-- Фон -->
+  <rect width="300" height="400" fill="#ecf0f1"/>
+  
+  <!-- Градиент для фона -->
+  <defs>
+    <linearGradient id="bookGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Основная обложка -->
+  <rect x="50" y="80" width="200" height="240" fill="url(#bookGradient)" rx="8"/>
+  
+  <!-- Тень книги -->
+  <rect x="55" y="85" width="200" height="240" fill="#2c3e50" opacity="0.3" rx="8"/>
+  
+  <!-- Заголовок книги -->
+  <text x="150" y="180" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="white">АУДИОКНИГА</text>
+  
+  <!-- Подзаголовок -->
+  <text x="150" y="200" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="white" opacity="0.8">Обложка</text>
+  
+  <!-- Иконка аудио -->
+  <circle cx="150" cy="250" r="25" fill="white" opacity="0.2"/>
+  <circle cx="150" cy="250" r="20" fill="white" opacity="0.3"/>
+  
+  <!-- Символ воспроизведения -->
+  <polygon points="140,240 140,260 160,250" fill="white" opacity="0.8"/>
+  
+  <!-- Декоративные элементы -->
+  <circle cx="80" cy="120" r="3" fill="white" opacity="0.6"/>
+  <circle cx="220" cy="120" r="3" fill="white" opacity="0.6"/>
+  <circle cx="80" cy="280" r="3" fill="white" opacity="0.6"/>
+  <circle cx="220" cy="280" r="3" fill="white" opacity="0.6"/>
+  
+  <!-- Текст "AudioStore" -->
+  <text x="150" y="350" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#2c3e50">AudioStore</text>
+</svg> 
