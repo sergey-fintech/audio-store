@@ -72,9 +72,9 @@ def start_orders_service():
     try:
         # Запускаем сервис из корневой директории
         process = subprocess.Popen(
-            [sys.executable, "services/orders/run_app.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            [sys.executable, "-m", "services.orders.run_app"],
+            stdout=None,
+            stderr=None
         )
         
         print(f"✅ Микросервис 'Заказы' запущен (PID: {process.pid})")
@@ -188,8 +188,8 @@ def main():
         print("❌ Не удалось запустить микросервис 'Заказы'")
         return
     
-    # Ждем запуска микросервиса "Заказы"
-    if not wait_for_service("http://localhost:8003/health", "Микросервис 'Заказы'"):
+    # Ждем запуска микросервиса "Заказы" (увеличенный таймаут для инициализации БД)
+    if not wait_for_service("http://localhost:8003/health", "Микросервис 'Заказы'", timeout=60):
         print("❌ Микросервис 'Заказы' не запустился")
         return
     

@@ -1,5 +1,6 @@
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from .models import Author, Category, Audiobook
 from .repositories import AuthorRepository, CategoryRepository, AudiobookRepository
 
@@ -82,14 +83,13 @@ class CatalogDomainService:
         total_audiobooks = self.session.query(Audiobook).count()
         
         # Средняя цена аудиокниг
-        avg_price = self.session.query(Audiobook.price).scalar()
-        if avg_price is None:
-            avg_price = 0.0
+        avg_price_result = self.session.query(func.avg(Audiobook.price)).scalar()
+        avg_price = float(avg_price_result) if avg_price_result is not None else 0.0
         
         # Количество аудиокниг по категориям
         category_stats = self.session.query(
             Category.name,
-            self.session.func.count(Audiobook.id).label('count')
+            func.count(Audiobook.id).label('count')
         ).join(Category.audiobooks).group_by(Category.name).all()
         
         return {

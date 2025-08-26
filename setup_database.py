@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
 """
-Скрипт для настройки базы данных.
-Удаляет дублирующие файлы БД и инициализирует основную БД с тестовыми данными.
+Скрипт для настройки MySQL базы данных.
+Инициализирует основную БД с тестовыми данными.
 """
 
 import os
 import sys
 import shutil
 
-def remove_duplicate_database():
-    """Удаляет дублирующую базу данных из services/catalog/."""
-    duplicate_path = "services/catalog/audio_store.db"
-    if os.path.exists(duplicate_path):
-        try:
-            os.remove(duplicate_path)
-            print(f"✓ Удален дублирующий файл: {duplicate_path}")
-        except Exception as e:
-            print(f"✗ Ошибка при удалении {duplicate_path}: {e}")
-    else:
-        print(f"✓ Дублирующий файл не найден: {duplicate_path}")
+def check_mysql_connection():
+    """Проверяет подключение к MySQL базе данных."""
+    try:
+        from database.connection import check_database_connection
+        if check_database_connection():
+            print("✓ Подключение к MySQL успешно")
+            return True
+        else:
+            print("✗ Ошибка подключения к MySQL")
+            return False
+    except Exception as e:
+        print(f"✗ Ошибка при проверке подключения к MySQL: {e}")
+        return False
 
 def initialize_database():
     """Инициализирует базу данных с тестовыми данными."""
@@ -128,17 +130,24 @@ def initialize_database():
 
 def main():
     """Основная функция."""
-    print("=== Настройка базы данных Audio Store ===\n")
+    print("=== Настройка MySQL базы данных Audio Store ===\n")
     
-    # Удаляем дублирующую базу данных
-    remove_duplicate_database()
+    # Проверяем подключение к MySQL
+    if not check_mysql_connection():
+        print("❌ Не удалось подключиться к MySQL. Убедитесь, что:")
+        print("   - MySQL сервер запущен")
+        print("   - База данных 'audio_store' создана")
+        print("   - Пользователь 'app_user' с паролем 'strong_password_123' существует")
+        print("   - Пользователь имеет права на базу данных 'audio_store'")
+        return
     
     # Инициализируем основную базу данных
     initialize_database()
     
     print("\n=== Настройка завершена ===")
-    print("База данных готова к использованию!")
-    print("Файл базы данных: audio_store.db")
+    print("MySQL база данных готова к использованию!")
+    print("База данных: audio_store")
+    print("Хост: 127.0.0.1:3306")
 
 if __name__ == "__main__":
     main() 

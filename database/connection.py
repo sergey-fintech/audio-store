@@ -1,5 +1,5 @@
 """
-Модуль для подключения к базе данных SQLite.
+Модуль для подключения к базе данных MySQL.
 
 Этот модуль служит единой точкой доступа к слою персистентности
 для всех микросервисов системы Audio Store.
@@ -19,8 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация базы данных
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATABASE_PATH = os.path.join(_project_root, "audio_store.db")
-DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
+DATABASE_URL = "mysql+pymysql://app_user:strong_password_123@127.0.0.1:3306/audio_store"
 
 # Глобальные переменные для движка и фабрики сессий
 _engine: Optional[create_engine] = None
@@ -32,7 +31,7 @@ def get_database_url() -> str:
     Возвращает URL для подключения к базе данных.
     
     Returns:
-        URL для подключения к SQLite базе данных
+        URL для подключения к MySQL базе данных
     """
     return DATABASE_URL
 
@@ -42,14 +41,13 @@ def get_database_path() -> str:
     Возвращает путь к файлу базы данных.
     
     Returns:
-        Путь к файлу базы данных
+        Путь к файлу базы данных (для совместимости)
     """
-    return DATABASE_PATH
+    return "mysql://127.0.0.1:3306/audio_store"
 
 
 def create_database_engine(
     echo: bool = False,
-    poolclass: Optional[type] = None,
     **kwargs
 ) -> create_engine:
     """
@@ -63,16 +61,13 @@ def create_database_engine(
     Returns:
         Настроенный движок SQLAlchemy
     """
-    # Параметры по умолчанию для SQLite
+    # Параметры по умолчанию для MySQL
     default_kwargs = {
-        "connect_args": {"check_same_thread": False},
-        "poolclass": StaticPool,
         "pool_pre_ping": True,
+        "pool_recycle": 3600,  # Пересоздавать соединения каждый час
+        "pool_size": 10,       # Размер пула соединений
+        "max_overflow": 20,    # Максимальное количество дополнительных соединений
     }
-    
-    # Обновляем параметры пользовательскими значениями
-    if poolclass:
-        default_kwargs["poolclass"] = poolclass
     
     default_kwargs.update(kwargs)
     
@@ -81,13 +76,6 @@ def create_database_engine(
         echo=echo,
         **default_kwargs
     )
-    
-    # Настройка SQLite для поддержки внешних ключей
-    @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
     
     return engine
 
@@ -229,18 +217,10 @@ def get_database_info() -> dict:
     
     info = {
         "database_url": DATABASE_URL,
-        "database_path": DATABASE_PATH,
+        "database_path": get_database_path(),
         "tables": inspector.get_table_names(),
         "connection_status": check_database_connection()
     }
-    
-    # Добавляем информацию о размере файла базы данных
-    if os.path.exists(DATABASE_PATH):
-        info["file_size"] = os.path.getsize(DATABASE_PATH)
-        info["file_exists"] = True
-    else:
-        info["file_size"] = 0
-        info["file_exists"] = False
     
     return info
 
@@ -292,12 +272,8 @@ def _initialize():
     Инициализация модуля при импорте.
     """
     logger.info("Инициализация модуля подключения к базе данных")
-    
-    # Проверяем существование файла базы данных
-    if not os.path.exists(DATABASE_PATH):
-        logger.info(f"Файл базы данных не найден: {DATABASE_PATH}")
-        logger.info("База данных будет создана при первом обращении")
+    logger.info(f"Подключение к MySQL: {DATABASE_URL}")
 
 
 # Запускаем инициализацию при импорте модуля
-_initialize() 
+_initialize()
