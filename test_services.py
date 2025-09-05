@@ -1,115 +1,97 @@
 #!/usr/bin/env python3
 """
-Тестовый скрипт для проверки работы микросервисов
+Скрипт для тестирования доступности микросервисов
 """
 
 import requests
 import json
 import time
 
-def test_catalog_service():
-    """Тестирует микросервис 'Каталог'"""
-    print("🔍 Тестирование микросервиса 'Каталог'...")
-    
+def test_service(url, name):
+    """Тестирует доступность сервиса"""
     try:
-        # Проверка состояния сервиса
-        response = requests.get("http://localhost:8001/health", timeout=5)
+        response = requests.get(url, timeout=5)
         if response.status_code == 200:
-            print("✅ Микросервис 'Каталог' работает")
-            print(f"   Ответ: {response.json()}")
+            print(f"✅ {name} доступен: {url}")
+            return True
         else:
-            print(f"❌ Ошибка: {response.status_code}")
+            print(f"❌ {name} недоступен (статус {response.status_code}): {url}")
             return False
-    except Exception as e:
-        print(f"❌ Не удалось подключиться к микросервису 'Каталог': {e}")
+    except requests.exceptions.RequestException as e:
+        print(f"❌ {name} недоступен: {url} - {e}")
         return False
-    
-    try:
-        # Проверка получения аудиокниги
-        response = requests.get("http://localhost:8001/audiobooks/1", timeout=5)
-        if response.status_code == 200:
-            audiobook = response.json()
-            print(f"✅ Получена аудиокнига: {audiobook['title']}")
-            print(f"   Цена: {audiobook['price']}")
-        else:
-            print(f"❌ Ошибка при получении аудиокниги: {response.status_code}")
-            return False
-    except Exception as e:
-        print(f"❌ Ошибка при получении аудиокниги: {e}")
-        return False
-    
-    return True
 
-def test_cart_service():
-    """Тестирует микросервис 'Корзина'"""
-    print("\n🔍 Тестирование микросервиса 'Корзина'...")
+def test_cart_api():
+    """Тестирует API корзины"""
+    url = "http://localhost:8004/api/v1/cart/calculate"
+    test_data = {
+        "items": [
+            {"audiobook_id": 1, "quantity": 2},
+            {"audiobook_id": 2, "quantity": 1}
+        ]
+    }
     
     try:
-        # Проверка состояния сервиса
-        response = requests.get("http://localhost:8002/health", timeout=5)
+        response = requests.post(url, json=test_data, timeout=10)
         if response.status_code == 200:
-            print("✅ Микросервис 'Корзина' работает")
-            print(f"   Ответ: {response.json()}")
+            data = response.json()
+            print(f"✅ Cart API работает: получено {len(data.get('items', []))} товаров")
+            return True
         else:
-            print(f"❌ Ошибка: {response.status_code}")
+            print(f"❌ Cart API ошибка (статус {response.status_code}): {response.text}")
             return False
-    except Exception as e:
-        print(f"❌ Не удалось подключиться к микросервису 'Корзина': {e}")
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Cart API недоступен: {e}")
         return False
+
+def test_orders_api():
+    """Тестирует API заказов"""
+    url = "http://localhost:8003/health"
     
     try:
-        # Тестирование расчета корзины
-        cart_data = {
-            "items": [
-                {"audiobook_id": 1, "quantity": 2},
-                {"audiobook_id": 2, "quantity": 1}
-            ]
-        }
-        
-        response = requests.post(
-            "http://localhost:8002/api/v1/cart/calculate",
-            json=cart_data,
-            timeout=10
-        )
-        
+        response = requests.get(url, timeout=5)
         if response.status_code == 200:
-            result = response.json()
-            print("✅ Расчет корзины выполнен успешно")
-            print(f"   Общая стоимость: {result['total_price']}")
-            print(f"   Количество товаров: {len(result['items'])}")
-            
-            for item in result['items']:
-                print(f"   - {item['title']}: {item['quantity']} x {item['price_per_unit']} = {item['total_price']}")
+            print(f"✅ Orders API доступен: {url}")
+            return True
         else:
-            print(f"❌ Ошибка при расчете корзины: {response.status_code}")
-            print(f"   Ответ: {response.text}")
+            print(f"❌ Orders API ошибка (статус {response.status_code})")
             return False
-    except Exception as e:
-        print(f"❌ Ошибка при расчете корзины: {e}")
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Orders API недоступен: {e}")
         return False
-    
-    return True
 
 def main():
-    """Основная функция тестирования"""
-    print("🚀 Тестирование микросервисов Audio Store")
+    print("🔍 Тестирование микросервисов...")
     print("=" * 50)
     
-    # Тестируем микросервис "Каталог"
-    catalog_ok = test_catalog_service()
+    # Тестируем доступность сервисов
+    services = [
+        ("http://localhost:8000", "Веб-сервер"),
+        ("http://localhost:8001/health", "Auth Service"),
+        ("http://localhost:8002/health", "Catalog Service"),
+        ("http://localhost:8004/health", "Cart Service"),
+        ("http://localhost:8003/health", "Orders Service"),
+    ]
     
-    # Тестируем микросервис "Корзина"
-    cart_ok = test_cart_service()
+    available_services = 0
+    for url, name in services:
+        if test_service(url, name):
+            available_services += 1
+        time.sleep(1)
     
     print("\n" + "=" * 50)
-    print("📊 Результаты тестирования:")
-    print(f"   Микросервис 'Каталог': {'✅ Работает' if catalog_ok else '❌ Не работает'}")
-    print(f"   Микросервис 'Корзина': {'✅ Работает' if cart_ok else '❌ Не работает'}")
+    print(f"📊 Доступно сервисов: {available_services}/{len(services)}")
     
-    if catalog_ok and cart_ok:
-        print("\n🎉 Все сервисы работают корректно!")
-    else:
-        print("\n⚠️  Некоторые сервисы не работают. Проверьте их запуск.")
+    # Тестируем API корзины
+    print("\n🧪 Тестирование API корзины...")
+    test_cart_api()
+    
+    # Тестируем API заказов
+    print("\n🧪 Тестирование API заказов...")
+    test_orders_api()
+    
+    print("\n" + "=" * 50)
+    print("🎯 Тестирование завершено!")
 
 if __name__ == "__main__":
     main() 

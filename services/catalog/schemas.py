@@ -151,4 +151,26 @@ class ErrorResponseSchema(BaseModel):
     
     error: str = Field(..., description="Описание ошибки")
     detail: Optional[str] = Field(None, description="Детали ошибки")
-    status_code: int = Field(..., description="HTTP код ошибки") 
+    status_code: int = Field(..., description="HTTP код ошибки")
+
+
+class AudiobookCreate(BaseModel):
+    """Схема для создания аудиокниги."""
+    
+    title: str = Field(..., description="Название аудиокниги", max_length=255)
+    author_id: int = Field(..., description="ID автора")
+    price: Decimal = Field(..., description="Цена аудиокниги", ge=0)
+    description: Optional[str] = Field(None, description="Описание аудиокниги")
+    cover_image_url: Optional[str] = Field(None, description="URL обложки", max_length=500)
+    category_ids: Optional[List[int]] = Field(default_factory=list, description="Список ID категорий")
+
+
+class AudiobookUpdate(BaseModel):
+    """Схема для обновления аудиокниги."""
+    
+    title: Optional[str] = Field(None, description="Название аудиокниги", max_length=255)
+    author_id: Optional[int] = Field(None, description="ID автора")
+    price: Optional[Decimal] = Field(None, description="Цена аудиокниги", ge=0)
+    description: Optional[str] = Field(None, description="Описание аудиокниги")
+    cover_image_url: Optional[str] = Field(None, description="URL обложки", max_length=500)
+    category_ids: Optional[List[int]] = Field(None, description="Список ID категорий") 

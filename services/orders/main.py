@@ -7,6 +7,12 @@
 # - Интеграцию с платежными системами
 # - Уведомления о статусе заказов
 
+import sys
+import os
+
+# Добавляем корневую директорию проекта в путь Python
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -16,14 +22,14 @@ from contextlib import asynccontextmanager
 
 from database.connection import get_db
 from database.models import Order, OrderItem
-from services.orders.schemas import (
+from schemas import (
     OrderCreateRequest, 
     OrderResponse, 
     OrderItemResponse, 
     ErrorResponse,
     CartCalculationResponse
 )
-from services.orders.services import OrderService
+from services import OrderService
 
 
 @asynccontextmanager

@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Добавляем корневую директорию проекта в путь Python
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 import httpx
 import asyncio
 from typing import List, Optional
@@ -7,7 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 import uuid
 
 from database.models import Order, OrderItem
-from services.orders.schemas import OrderCreateRequest, CartCalculationResponse
+from schemas import OrderCreateRequest, CartCalculationResponse
 
 
 class OrderService:
@@ -43,7 +49,7 @@ class OrderService:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
-                    "http://localhost:8002/api/v1/cart/calculate",
+                    "http://localhost:8004/api/v1/cart/calculate",
                     json={"items": cart_items}
                 )
                 

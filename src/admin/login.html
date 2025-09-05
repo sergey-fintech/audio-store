@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в админ-панель - Аудитерия</title>
+    <link rel="stylesheet" href="../styles/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0F1014 0%, #1A1B23 100%);
+            padding: 20px;
+        }
+        
+        .login-card {
+            background: #1A1B23;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            border: 1px solid #2A2B35;
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .login-logo {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .login-title {
+            color: #FFFFFF;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .login-subtitle {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #FFFFFF;
+            font-size: 14px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #2A2B35;
+            border-radius: 12px;
+            font-size: 16px;
+            box-sizing: border-box;
+            background-color: #0F1014;
+            color: #FFFFFF;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #ff6b35;
+            box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+        }
+        
+        .login-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            color: white;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 107, 53, 0.3);
+        }
+        
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .error-message {
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            color: #dc3545;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .back-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .back-link a {
+            color: #888;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s ease;
+        }
+        
+        .back-link a:hover {
+            color: #ff6b35;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">A</div>
+                <h1 class="login-title">Админ-панель</h1>
+                <p class="login-subtitle">Войдите в систему управления</p>
+            </div>
+            
+            <div class="error-message" id="error-message"></div>
+            
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username">Имя пользователя</label>
+                    <input type="text" id="username" name="username" required autocomplete="username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Пароль</label>
+                    <input type="password" id="password" name="password" required autocomplete="current-password">
+                </div>
+                
+                <button type="submit" class="login-btn" id="login-btn">
+                    Войти
+                </button>
+                
+                <div class="loading" id="loading">
+                    Проверка учетных данных...
+                </div>
+            </form>
+            
+            <div class="back-link">
+                <a href="../index.html">← Вернуться на главную</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Импорт конфигурации администратора
+        // В реальном приложении это будет API запрос
+        const ADMIN_CREDENTIALS = {
+            username: "admin",
+            password: "admin123"
+        };
+
+        // Проверка учетных данных
+        function verifyAdminCredentials(username, password) {
+            return username === ADMIN_CREDENTIALS.username && 
+                   password === ADMIN_CREDENTIALS.password;
+        }
+
+        // Генерация токена администратора
+        function generateAdminToken() {
+            const timestamp = Date.now();
+            const randomData = Math.random().toString(36).substring(2);
+            const tokenData = `${ADMIN_CREDENTIALS.username}:${timestamp}:${randomData}`;
+            
+            // Простое хеширование (в реальном приложении используйте более безопасные методы)
+            let hash = 0;
+            for (let i = 0; i < tokenData.length; i++) {
+                const char = tokenData.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32bit integer
+            }
+            
+            return Math.abs(hash).toString(36);
+        }
+
+        // Проверка токена
+        function verifyAdminToken(token) {
+            const storedToken = localStorage.getItem('admin_token');
+            return storedToken && storedToken === token;
+        }
+
+        // Обработчик формы входа
+        document.getElementById('login-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorMessage = document.getElementById('error-message');
+            const loginBtn = document.getElementById('login-btn');
+            const loading = document.getElementById('loading');
+            
+            // Скрываем предыдущие ошибки
+            errorMessage.style.display = 'none';
+            
+            // Показываем загрузку
+            loginBtn.disabled = true;
+            loading.style.display = 'block';
+            
+            try {
+                // Имитация задержки для UX
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Проверяем учетные данные
+                if (verifyAdminCredentials(username, password)) {
+                    // Генерируем токен
+                    const token = generateAdminToken();
+                    
+                    // Сохраняем токен в localStorage
+                    localStorage.setItem('admin_token', token);
+                    localStorage.setItem('admin_username', username);
+                    localStorage.setItem('admin_login_time', Date.now().toString());
+                    
+                    // Перенаправляем на админ-панель
+                    window.location.href = 'admin.html';
+                } else {
+                    // Показываем ошибку
+                    errorMessage.textContent = 'Неверное имя пользователя или пароль';
+                    errorMessage.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Ошибка входа:', error);
+                errorMessage.textContent = 'Произошла ошибка при входе в систему';
+                errorMessage.style.display = 'block';
+            } finally {
+                // Скрываем загрузку
+                loginBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+
+        // Проверяем, не авторизован ли уже пользователь
+        document.addEventListener('DOMContentLoaded', function() {
+            const token = localStorage.getItem('admin_token');
+            if (token && verifyAdminToken(token)) {
+                // Пользователь уже авторизован, перенаправляем
+                window.location.href = 'admin.html';
+            }
+        });
+
+        // Обработка Enter в полях формы
+        document.getElementById('username').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('password').focus();
+            }
+        });
+
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('login-form').dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+</body>
+</html>

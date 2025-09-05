@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import httpx
@@ -9,6 +10,15 @@ app = FastAPI(
     title="Корзина API",
     description="Микросервис для валидации и расчета стоимости корзины",
     version="1.0.0"
+)
+
+# Настройка CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # В продакшене замените на конкретные домены
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # DTO модели для входных и выходных данных
@@ -45,18 +55,24 @@ async def get_audiobook_info(audiobook_id: int, client: httpx.AsyncClient) -> Op
     """
     Асинхронно получает информацию об аудиокниге из микросервиса "Каталог"
     """
+    url = f"http://localhost:8002/api/v1/audiobooks/{audiobook_id}"
+    print(f"🔍 Запрос к Catalog Service: {url}")
+    
     try:
-        response = await client.get(f"http://localhost:8001/api/v1/audiobooks/{audiobook_id}")
+        response = await client.get(url)
+        print(f"📡 Ответ от Catalog Service для ID {audiobook_id}: статус {response.status_code}")
         
         if response.status_code == 404:
             # Товар не найден - игнорируем
+            print(f"❌ Книга с ID {audiobook_id} не найдена в каталоге")
             return None
         elif response.status_code == 200:
             data = response.json()
+            print(f"✅ Книга с ID {audiobook_id} найдена: {data.get('title', 'Unknown')}")
             return AudiobookInfo(**data)
         else:
             # Другие ошибки - логируем, но не прерываем процесс
-            print(f"Ошибка при получении информации об аудиокниге {audiobook_id}: {response.status_code}")
+            print(f"❌ Ошибка при получении информации об аудиокниге {audiobook_id}: {response.status_code}")
             return None
             
     except httpx.RequestError as e:
@@ -97,9 +113,14 @@ async def calculate_cart(request: CartCalculationRequest):
     cart_items = []
     total_price = 0.0
     
+    print(f"🛒 Обработка {len(request.items)} товаров в корзине")
+    
     for item, audiobook_info in zip(request.items, audiobook_infos):
+        print(f"📦 Обработка товара ID {item.audiobook_id}: {audiobook_info}")
+        
         # Пропускаем товары, которые не найдены или вызвали ошибку
         if audiobook_info is None or isinstance(audiobook_info, Exception):
+            print(f"⚠️ Пропускаем товар ID {item.audiobook_id} (не найден или ошибка)")
             continue
             
         item_total = audiobook_info.price * item.quantity
@@ -130,4 +151,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8002)
+    uvicorn.run(app, host="0.0.0.0", port=8004)

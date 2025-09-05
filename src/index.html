@@ -18,11 +18,14 @@
                 <a href="#my-books">Мои книги</a>
                 <a href="#history">История</a>
                 <a href="#bookmarks">Закладки</a>
+                <a href="cart.html">Корзина (<span id="cart-count">0</span>)</a>
+                <a href="admin/admin.html" style="color: #ff6b35; font-weight: bold;">Админ-панель</a>
             </nav>
                 <div class="nav-actions">
                 <button class="search-btn">
                     <img src="assets/images/search-icon.svg" alt="Поиск">
                 </button>
+                <button class="login-btn" onclick="window.location.href='login.html'">Войти</button>
                 <div class="profile">
                     <div class="profile-icon">
                         <img src="assets/images/user-avatar.svg" alt="Аватар">
@@ -101,7 +104,7 @@
                         </div>
                     </div>
                     <div class="hero-buttons">
-                        <button class="hero-buy-button">Купить за 199 руб.</button>
+                        <button class="hero-buy-button add-to-cart-btn" data-book-id="2" data-book-title="Гарри Поттер и философский камень" data-book-price="24.99">Купить за 24.99 руб.</button>
                         <button class="hero-desktop-button">Отправить на рабочий стол</button>
                     </div>
                 </div>
@@ -258,7 +261,7 @@
                     </div>
                 </div>
                 <div class="offer-button-wrapper">
-                    <button class="offer-button">Купить за 199 руб.</button>
+                    <button class="offer-button add-to-cart-btn" data-book-id="3" data-book-title="Властелин колец" data-book-price="39.99">Купить за 39.99 руб.</button>
                 </div>
             </div>
         </div>
@@ -269,7 +272,7 @@
         <div class="container">
             <h2 class="booklist-title">Книги в подборке</h2>
             <div class="booklist-wrapper">
-                <div class="book-card">
+                <div class="book-card" data-book-id="1">
                     <div class="book-image-wrapper">
                         <div class="book-image">
                             <img src="assets/images/book-cover-1.png" alt="Обложка книги">
@@ -278,9 +281,11 @@
                     <div class="book-content">
                         <div class="book-author">Ульяна Соболева</div>
                         <div class="book-title">Унесенные ветром. Часть вторая</div>
+                        <div class="book-price">199 ₽</div>
+                        <button class="add-to-cart-btn">В корзину</button>
                     </div>
                 </div>
-                <div class="book-card">
+                <div class="book-card" data-book-id="2">
                     <div class="book-image-wrapper">
                         <div class="book-image">
                             <img src="assets/images/book-cover-2.png" alt="Обложка книги">
@@ -289,9 +294,11 @@
                     <div class="book-content">
                         <div class="book-author">Линкольн Чайлд</div>
                         <div class="book-title">Алмазная колесница</div>
+                        <div class="book-price">249 ₽</div>
+                        <button class="add-to-cart-btn">В корзину</button>
                     </div>
                 </div>
-                <div class="book-card">
+                <div class="book-card" data-book-id="3">
                     <div class="book-image-wrapper">
                         <div class="book-image">
                             <img src="assets/images/book-cover-3.png" alt="Обложка книги">
@@ -300,9 +307,11 @@
                     <div class="book-content">
                         <div class="book-author">Джефф Линдсей</div>
                         <div class="book-title">«Линкольн» для адвоката</div>
+                        <div class="book-price">179 ₽</div>
+                        <button class="add-to-cart-btn">В корзину</button>
                     </div>
                 </div>
-                <div class="book-card">
+                <div class="book-card" data-book-id="4">
                     <div class="book-image-wrapper">
                         <div class="book-image">
                             <img src="assets/images/book-cover-4.png" alt="Обложка книги">
@@ -311,9 +320,11 @@
                     <div class="book-content">
                         <div class="book-author">Лира Алая</div>
                         <div class="book-title">Не твоя Людмила</div>
+                        <div class="book-price">159 ₽</div>
+                        <button class="add-to-cart-btn">В корзину</button>
                     </div>
                 </div>
-                <div class="book-card">
+                <div class="book-card" data-book-id="5">
                     <div class="book-image-wrapper">
                         <div class="book-image">
                             <img src="assets/images/book-cover-5.png" alt="Обложка книги">
@@ -322,6 +333,8 @@
                     <div class="book-content">
                         <div class="book-author">Маргарет Митчелл</div>
                         <div class="book-title">Тьма императора. Книга вторая</div>
+                        <div class="book-price">229 ₽</div>
+                        <button class="add-to-cart-btn">В корзину</button>
                     </div>
                 </div>
             </div>

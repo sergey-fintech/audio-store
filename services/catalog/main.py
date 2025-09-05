@@ -7,6 +7,7 @@
 # - Рекомендации похожих книг
 
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import sys
@@ -19,11 +20,21 @@ from database.models import Base, Author, Category, Audiobook
 from database.repositories import AuthorRepository, CategoryRepository, AudiobookRepository
 from database.services import CatalogDomainService
 from database.connection import get_db, initialize_database, get_database_info
+from schemas import AudiobookCreate, AudiobookUpdate, AudiobookSchema, ErrorResponseSchema
 
 # Инициализация базы данных
 initialize_database()
 
 app = FastAPI(title="Catalog Service", version="1.0.0")
+
+# Настройка CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # В продакшене замените на конкретные домены
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # Используем функцию get_db из модуля подключения
@@ -102,6 +113,7 @@ async def create_category(name: str, db: Session = Depends(get_db)):
 
 # API для аудиокниг
 @app.get("/audiobooks", response_model=List[dict])
+@app.get("/api/v1/audiobooks", response_model=List[dict])
 async def get_audiobooks(
     limit: Optional[int] = None,
     offset: Optional[int] = None,
@@ -142,6 +154,127 @@ async def get_audiobook(audiobook_id: int, db: Session = Depends(get_db)):
         "author": {"id": audiobook.author.id, "name": audiobook.author.name} if audiobook.author else None,
         "categories": [{"id": cat.id, "name": cat.name} for cat in audiobook.categories]
     }
+
+
+@app.post("/api/v1/audiobooks", response_model=dict)
+async def create_audiobook(audiobook_data: AudiobookCreate, db: Session = Depends(get_db)):
+    """Создать новую аудиокнигу."""
+    repo = AudiobookRepository(db)
+    
+    # Проверяем существование автора
+    author_repo = AuthorRepository(db)
+    author = author_repo.get_by_id(audiobook_data.author_id)
+    if not author:
+        raise HTTPException(status_code=404, detail="Автор не найден")
+    
+    # Создаем аудиокнигу
+    audiobook = repo.create(
+        title=audiobook_data.title,
+        author_id=audiobook_data.author_id,
+        price=float(audiobook_data.price),
+        description=audiobook_data.description,
+        cover_image_url=audiobook_data.cover_image_url
+    )
+    
+    # Добавляем категории, если указаны
+    if audiobook_data.category_ids:
+        category_repo = CategoryRepository(db)
+        for category_id in audiobook_data.category_ids:
+            category = category_repo.get_by_id(category_id)
+            if category:
+                repo.add_category(audiobook.id, category_id)
+    
+    # Получаем обновленную аудиокнигу с категориями
+    updated_audiobook = repo.get_by_id(audiobook.id)
+    
+    return {
+        "id": updated_audiobook.id,
+        "title": updated_audiobook.title,
+        "description": updated_audiobook.description,
+        "price": float(updated_audiobook.price),
+        "cover_image_url": updated_audiobook.cover_image_url,
+        "author": {"id": updated_audiobook.author.id, "name": updated_audiobook.author.name} if updated_audiobook.author else None,
+        "categories": [{"id": cat.id, "name": cat.name} for cat in updated_audiobook.categories]
+    }
+
+
+@app.put("/api/v1/audiobooks/{audiobook_id}", response_model=dict)
+async def update_audiobook(audiobook_id: int, audiobook_data: AudiobookUpdate, db: Session = Depends(get_db)):
+    """Обновить аудиокнигу по ID."""
+    repo = AudiobookRepository(db)
+    
+    # Проверяем существование аудиокниги
+    existing_audiobook = repo.get_by_id(audiobook_id)
+    if not existing_audiobook:
+        raise HTTPException(status_code=404, detail="Аудиокнига не найдена")
+    
+    # Проверяем существование автора, если указан
+    if audiobook_data.author_id is not None:
+        author_repo = AuthorRepository(db)
+        author = author_repo.get_by_id(audiobook_data.author_id)
+        if not author:
+            raise HTTPException(status_code=404, detail="Автор не найден")
+    
+    # Подготавливаем данные для обновления
+    update_data = {}
+    if audiobook_data.title is not None:
+        update_data['title'] = audiobook_data.title
+    if audiobook_data.author_id is not None:
+        update_data['author_id'] = audiobook_data.author_id
+    if audiobook_data.price is not None:
+        update_data['price'] = float(audiobook_data.price)
+    if audiobook_data.description is not None:
+        update_data['description'] = audiobook_data.description
+    if audiobook_data.cover_image_url is not None:
+        update_data['cover_image_url'] = audiobook_data.cover_image_url
+    
+    # Обновляем аудиокнигу
+    updated_audiobook = repo.update(audiobook_id, **update_data)
+    
+    # Обновляем категории, если указаны
+    if audiobook_data.category_ids is not None:
+        # Удаляем все существующие категории
+        for category in existing_audiobook.categories:
+            repo.remove_category(audiobook_id, category.id)
+        
+        # Добавляем новые категории
+        category_repo = CategoryRepository(db)
+        for category_id in audiobook_data.category_ids:
+            category = category_repo.get_by_id(category_id)
+            if category:
+                repo.add_category(audiobook_id, category_id)
+    
+    # Получаем обновленную аудиокнигу
+    final_audiobook = repo.get_by_id(audiobook_id)
+    
+    return {
+        "id": final_audiobook.id,
+        "title": final_audiobook.title,
+        "description": final_audiobook.description,
+        "price": float(final_audiobook.price),
+        "cover_image_url": final_audiobook.cover_image_url,
+        "author": {"id": final_audiobook.author.id, "name": final_audiobook.author.name} if final_audiobook.author else None,
+        "categories": [{"id": cat.id, "name": cat.name} for cat in final_audiobook.categories]
+    }
+
+
+@app.delete("/api/v1/audiobooks/{audiobook_id}")
+async def delete_audiobook(audiobook_id: int, db: Session = Depends(get_db)):
+    """Удалить аудиокнигу по ID."""
+    repo = AudiobookRepository(db)
+    
+    # Проверяем существование аудиокниги
+    existing_audiobook = repo.get_by_id(audiobook_id)
+    if not existing_audiobook:
+        raise HTTPException(status_code=404, detail="Аудиокнига не найдена")
+    
+    # Удаляем аудиокнигу
+    success = repo.delete(audiobook_id)
+    
+    if success:
+        return {"message": "Аудиокнига успешно удалена", "id": audiobook_id}
+    else:
+        raise HTTPException(status_code=500, detail="Ошибка при удалении аудиокниги")
 
 
 @app.post("/audiobooks", response_model=dict)
@@ -332,4 +465,4 @@ async def search_audiobooks_comprehensive(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001) 
+    uvicorn.run(app, host="0.0.0.0", port=8002) 

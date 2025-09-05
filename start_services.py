@@ -1,220 +1,174 @@
 #!/usr/bin/env python3
 """
-Скрипт для запуска микросервисов
+Скрипт для запуска всех микросервисов audio-store
 """
 
 import subprocess
-import time
-import requests
 import sys
 import os
+import time
 import signal
-import atexit
+import threading
+from pathlib import Path
 
-# Глобальные переменные для хранения процессов
-processes = []
-
-def cleanup_processes():
-    """Очищает все запущенные процессы при выходе"""
-    for process in processes:
-        try:
-            if process.poll() is None:  # Процесс еще работает
-                process.terminate()
-                process.wait(timeout=5)
-        except:
-            pass
-
-# Регистрируем функцию очистки
-atexit.register(cleanup_processes)
-
-def start_catalog_service():
-    """Запускает микросервис 'Каталог'"""
-    print("🚀 Запуск микросервиса 'Каталог'...")
-    
-    try:
-        # Запускаем сервис из корневой директории
-        process = subprocess.Popen(
-            [sys.executable, "services/catalog/main.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
+class ServiceManager:
+    def __init__(self):
+        self.processes = []
+        self.base_dir = Path(__file__).parent
         
-        print(f"✅ Микросервис 'Каталог' запущен (PID: {process.pid})")
-        processes.append(process)
-        return process
-    except Exception as e:
-        print(f"❌ Ошибка запуска микросервиса 'Каталог': {e}")
-        return None
-
-def start_cart_service():
-    """Запускает микросервис 'Корзина'"""
-    print("🚀 Запуск микросервиса 'Корзина'...")
-    
-    try:
-        # Запускаем сервис из корневой директории
-        process = subprocess.Popen(
-            [sys.executable, "services/cart/run_app.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
+    def start_auth_service(self):
+        """Запуск микросервиса аутентификации"""
+        print("🚀 Запуск микросервиса аутентификации...")
+        auth_dir = self.base_dir / "services" / "auth"
         
-        print(f"✅ Микросервис 'Корзина' запущен (PID: {process.pid})")
-        processes.append(process)
-        return process
-    except Exception as e:
-        print(f"❌ Ошибка запуска микросервиса 'Корзина': {e}")
-        return None
-
-def start_orders_service():
-    """Запускает микросервис 'Заказы'"""
-    print("🚀 Запуск микросервиса 'Заказы'...")
-    
-    try:
-        # Запускаем сервис из корневой директории
-        process = subprocess.Popen(
-            [sys.executable, "-m", "services.orders.run_app"],
-            stdout=None,
-            stderr=None
-        )
-        
-        print(f"✅ Микросервис 'Заказы' запущен (PID: {process.pid})")
-        processes.append(process)
-        return process
-    except Exception as e:
-        print(f"❌ Ошибка запуска микросервиса 'Заказы': {e}")
-        return None
-
-def wait_for_service(url, service_name, timeout=30):
-    """Ожидает запуска сервиса"""
-    print(f"⏳ Ожидание запуска {service_name}...")
-    
-    for i in range(timeout):
-        try:
-            response = requests.get(url, timeout=2)
-            if response.status_code == 200:
-                print(f"✅ {service_name} готов к работе")
-                return True
-        except:
-            pass
-        
-        time.sleep(1)
-        if (i + 1) % 5 == 0:
-            print(f"   ... еще {timeout - i - 1} секунд")
-    
-    print(f"❌ {service_name} не запустился за {timeout} секунд")
-    return False
-
-def test_cart_calculation():
-    """Тестирует расчет корзины"""
-    print("\n🧪 Тестирование расчета корзины...")
-    
-    try:
-        cart_data = {
-            "items": [
-                {"audiobook_id": 1, "quantity": 2},
-                {"audiobook_id": 2, "quantity": 1}
-            ]
-        }
-        
-        response = requests.post(
-            "http://localhost:8002/api/v1/cart/calculate",
-            json=cart_data,
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            print("✅ Расчет корзины успешен!")
-            print(f"   Общая стоимость: {result['total_price']}")
-            print(f"   Товаров в корзине: {len(result['items'])}")
-            
-            for item in result['items']:
-                print(f"   - {item['title']}: {item['quantity']} x {item['price_per_unit']} = {item['total_price']}")
-            
-            return True
-        else:
-            print(f"❌ Ошибка расчета: {response.status_code}")
-            print(f"   Ответ: {response.text}")
+        if not auth_dir.exists():
+            print(f"❌ Папка {auth_dir} не найдена!")
             return False
             
-    except Exception as e:
-        print(f"❌ Ошибка тестирования: {e}")
+        try:
+            # Запускаем микросервис аутентификации
+            process = subprocess.Popen(
+                [sys.executable, "main.py"],
+                cwd=auth_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            self.processes.append(("Auth Service", process))
+            print("✅ Микросервис аутентификации запущен на порту 8001")
+            return True
+        except Exception as e:
+            print(f"❌ Ошибка запуска микросервиса аутентификации: {e}")
+            return False
+    
+    def start_web_server(self):
+        """Запуск веб-сервера для статических файлов"""
+        print("🌐 Запуск веб-сервера...")
+        src_dir = self.base_dir / "src"
+        
+        if not src_dir.exists():
+            print(f"❌ Папка {src_dir} не найдена!")
+            return False
+            
+        try:
+            # Запускаем веб-сервер
+            process = subprocess.Popen(
+                [sys.executable, "-m", "http.server", "8000"],
+                cwd=src_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            self.processes.append(("Web Server", process))
+            print("✅ Веб-сервер запущен на порту 8000")
+            return True
+        except Exception as e:
+            print(f"❌ Ошибка запуска веб-сервера: {e}")
+            return False
+    
+    def check_ports(self):
+        """Проверка доступности портов"""
+        import socket
+        
+        ports_to_check = [8000, 8001]
+        available_ports = []
+        
+        for port in ports_to_check:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(1)
+                    result = s.connect_ex(('localhost', port))
+                    if result == 0:
+                        available_ports.append(port)
+            except:
+                pass
+        
+        return available_ports
+    
+    def wait_for_services(self, timeout=30):
+        """Ожидание запуска сервисов"""
+        print("⏳ Ожидание запуска сервисов...")
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            available_ports = self.check_ports()
+            if len(available_ports) >= 2:
+                print(f"✅ Все сервисы запущены! Доступные порты: {available_ports}")
+                return True
+            time.sleep(1)
+        
+        print("❌ Таймаут ожидания запуска сервисов")
         return False
-
-def signal_handler(signum, frame):
-    """Обработчик сигнала для корректного завершения"""
-    print("\n🛑 Получен сигнал остановки. Завершаем работу...")
-    cleanup_processes()
-    sys.exit(0)
+    
+    def open_browser(self):
+        """Открытие браузера"""
+        try:
+            import webbrowser
+            print("🌐 Открытие главной страницы в браузере...")
+            webbrowser.open("http://localhost:8000/index.html")
+            print("✅ Браузер открыт!")
+        except Exception as e:
+            print(f"❌ Ошибка открытия браузера: {e}")
+    
+    def run(self):
+        """Основной метод запуска"""
+        print("🎵 Запуск Audio Store...")
+        print("=" * 50)
+        
+        # Запускаем сервисы
+        auth_ok = self.start_auth_service()
+        web_ok = self.start_web_server()
+        
+        if not auth_ok or not web_ok:
+            print("❌ Не удалось запустить все сервисы")
+            self.cleanup()
+            return False
+        
+        # Ждем запуска сервисов
+        if self.wait_for_services():
+            print("\n" + "=" * 50)
+            print("🎉 Audio Store успешно запущен!")
+            print("\n📋 Доступные URL:")
+            print("   • Главная страница: http://localhost:8000/index.html")
+            print("   • Страница входа: http://localhost:8000/login.html")
+            print("   • Страница регистрации: http://localhost:8000/register.html")
+            print("   • API документация: http://localhost:8001/docs")
+            print("\n💡 Для остановки нажмите Ctrl+C")
+            print("=" * 50)
+            
+            # Открываем браузер
+            self.open_browser()
+            
+            # Ждем сигнала завершения
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print("\n🛑 Получен сигнал завершения...")
+                self.cleanup()
+                return True
+        else:
+            self.cleanup()
+            return False
+    
+    def cleanup(self):
+        """Очистка процессов"""
+        print("🧹 Остановка сервисов...")
+        for name, process in self.processes:
+            try:
+                process.terminate()
+                process.wait(timeout=5)
+                print(f"✅ {name} остановлен")
+            except subprocess.TimeoutExpired:
+                process.kill()
+                print(f"⚠️ {name} принудительно остановлен")
+            except Exception as e:
+                print(f"❌ Ошибка остановки {name}: {e}")
 
 def main():
-    """Основная функция"""
-    print("🎯 Запуск микросервисов Audio Store")
-    print("=" * 50)
-    
-    # Устанавливаем обработчик сигналов
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    # Убеждаемся, что мы в корневой директории
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(script_dir)
-    
-    # Запускаем микросервис "Каталог"
-    catalog_process = start_catalog_service()
-    if not catalog_process:
-        print("❌ Не удалось запустить микросервис 'Каталог'")
-        return
-    
-    # Ждем запуска микросервиса "Каталог"
-    if not wait_for_service("http://localhost:8001/health", "Микросервис 'Каталог'"):
-        print("❌ Микросервис 'Каталог' не запустился")
-        return
-    
-    # Запускаем микросервис "Корзина"
-    cart_process = start_cart_service()
-    if not cart_process:
-        print("❌ Не удалось запустить микросервис 'Корзина'")
-        return
-    
-    # Ждем запуска микросервиса "Корзина"
-    if not wait_for_service("http://localhost:8002/health", "Микросервис 'Корзина'"):
-        print("❌ Микросервис 'Корзина' не запустился")
-        return
-    
-    # Запускаем микросервис "Заказы"
-    orders_process = start_orders_service()
-    if not orders_process:
-        print("❌ Не удалось запустить микросервис 'Заказы'")
-        return
-    
-    # Ждем запуска микросервиса "Заказы" (увеличенный таймаут для инициализации БД)
-    if not wait_for_service("http://localhost:8003/health", "Микросервис 'Заказы'", timeout=60):
-        print("❌ Микросервис 'Заказы' не запустился")
-        return
-    
-    print("\n🎉 Все сервисы запущены!")
-    print("   - Каталог: http://localhost:8001")
-    print("   - Корзина: http://localhost:8002")
-    print("   - Заказы: http://localhost:8003")
-    
-    # Тестируем расчет корзины
-    test_cart_calculation()
-    
-    print("\n📋 Для остановки сервисов нажмите Ctrl+C")
-    
-    try:
-        # Ждем завершения процессов
-        while True:
-            time.sleep(1)
-            # Проверяем, что все процессы еще работают
-            for process in processes:
-                if process.poll() is not None:
-                    print(f"⚠️  Процесс {process.pid} завершился")
-    except KeyboardInterrupt:
-        print("\n🛑 Остановка сервисов...")
-        cleanup_processes()
-        print("✅ Сервисы остановлены")
+    manager = ServiceManager()
+    success = manager.run()
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
     main() 
