@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест страницы корзины</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .cart-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Тест страницы корзины</h1>
+        
+        <div>
+            <button class="test-button" onclick="addTestItems()">Добавить тестовые товары</button>
+            <button class="test-button" onclick="checkCart()">Проверить корзину</button>
+            <button class="test-button" onclick="clearCart()">Очистить корзину</button>
+            <button class="test-button" onclick="testGetCart()">Тест getCart()</button>
+        </div>
+        
+        <div class="result" id="results">Нажмите кнопку для тестирования</div>
+        
+        <div>
+            <h3>Содержимое корзины:</h3>
+            <div id="cart-display">Корзина пуста</div>
+        </div>
+    </div>
+
+    <script>
+        // Копируем функции из cart.js для тестирования
+        function getCart() {
+            const cart = JSON.parse(localStorage.getItem('cart')) || [];
+            console.log('getCart из localStorage:', cart);
+            return cart;
+        }
+        
+        function saveCart(cart) {
+            localStorage.setItem('cart', JSON.stringify(cart));
+            console.log('saveCart:', cart);
+        }
+        
+        function addTestItems() {
+            const testItems = [
+                {
+                    id: '1',
+                    title: 'Тестовая книга 1',
+                    price: 299,
+                    quantity: 2
+                },
+                {
+                    id: '2',
+                    title: 'Тестовая книга 2',
+                    price: 399,
+                    quantity: 1
+                },
+                {
+                    id: '3',
+                    title: 'Тестовая книга 3',
+                    price: 199,
+                    quantity: 3
+                }
+            ];
+            
+            saveCart(testItems);
+            updateDisplay();
+            showResults('Тестовые товары добавлены в корзину');
+        }
+        
+        function checkCart() {
+            const cart = getCart();
+            showResults(`Корзина содержит ${cart.length} товаров:\n${JSON.stringify(cart, null, 2)}`);
+            updateDisplay();
+        }
+        
+        function clearCart() {
+            saveCart([]);
+            updateDisplay();
+            showResults('Корзина очищена');
+        }
+        
+        function testGetCart() {
+            const cart = getCart();
+            const results = document.getElementById('results');
+            results.textContent = `getCart() вернул:\n${JSON.stringify(cart, null, 2)}\n\nКоличество товаров: ${cart.length}`;
+            updateDisplay();
+        }
+        
+        function updateDisplay() {
+            const cart = getCart();
+            const display = document.getElementById('cart-display');
+            
+            if (cart.length === 0) {
+                display.innerHTML = 'Корзина пуста';
+            } else {
+                let html = '';
+                cart.forEach(item => {
+                    html += `<div class="cart-item">
+                        <strong>${item.title}</strong><br>
+                        Цена: ${item.price} ₽<br>
+                        Количество: ${item.quantity}<br>
+                        Итого: ${item.price * item.quantity} ₽
+                    </div>`;
+                });
+                display.innerHTML = html;
+            }
+        }
+        
+        function showResults(message) {
+            const results = document.getElementById('results');
+            results.textContent = message;
+        }
+        
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Тест страницы корзины загружен');
+            updateDisplay();
+            checkCart();
+        });
+    </script>
+</body>
+</html>
+

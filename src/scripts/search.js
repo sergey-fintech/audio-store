@@ -1,8 +1,8 @@
-// Каталог аудиокниг
-class CatalogManager {
+// Поиск аудиокниг
+class SearchManager {
     constructor() {
         this.currentPage = 1;
-        this.itemsPerPage = 6; // По 6 товаров на странице
+        this.itemsPerPage = 6;
         this.currentFilters = {
             genre: '',
             author: '',
@@ -13,6 +13,7 @@ class CatalogManager {
         this.filteredBooks = [];
         this.uniqueGenres = new Set();
         this.uniqueAuthors = new Set();
+        this.searchQuery = '';
         
         this.init();
     }
@@ -20,11 +21,21 @@ class CatalogManager {
     init() {
         this.setupEventListeners();
         this.loadBooks();
-        
-        // Обновляем счетчик корзины с небольшой задержкой, чтобы DOM был готов
-        setTimeout(() => {
-            this.updateCartCount();
-        }, 100);
+        this.updateCartCount();
+        this.handleSearchFromURL();
+    }
+    
+    // Обработка поискового запроса из URL
+    handleSearchFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const query = urlParams.get('q');
+        if (query) {
+            this.searchQuery = decodeURIComponent(query);
+            document.getElementById('search-input').value = this.searchQuery;
+            this.performSearch();
+        } else {
+            this.loadBooks();
+        }
     }
     
     // Загрузка книг с API
@@ -39,7 +50,6 @@ class CatalogManager {
             }
             
             const data = await response.json();
-            // API возвращает данные в формате {"items": [...]}
             this.allBooks = data.items || data.audiobooks || data || [];
             
             // Убеждаемся, что allBooks является массивом
@@ -62,6 +72,87 @@ class CatalogManager {
             console.error('Ошибка загрузки каталога:', error);
             this.showError('Ошибка загрузки каталога. Проверьте подключение к серверу.');
         }
+    }
+    
+    // Выполнение поиска
+    async performSearch() {
+        if (!this.searchQuery.trim()) {
+            this.loadBooks();
+            return;
+        }
+        
+        try {
+            this.showLoading();
+            
+            // Используем API поиска
+            const searchParams = new URLSearchParams();
+            searchParams.append('q', this.searchQuery);
+            searchParams.append('limit', '100');
+            
+            const response = await fetch(`http://localhost:8002/api/v1/search?${searchParams.toString()}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            this.allBooks = data || [];
+            
+            // Убеждаемся, что allBooks является массивом
+            if (!Array.isArray(this.allBooks)) {
+                console.error('Ошибка: allBooks не является массивом:', this.allBooks);
+                this.allBooks = [];
+            }
+            
+            // Извлекаем уникальные жанры и авторов
+            this.extractUniqueValues();
+            
+            // Заполняем фильтры
+            this.populateFilters();
+            
+            this.applyFilters();
+            this.renderBooks();
+            this.renderPagination();
+            
+        } catch (error) {
+            console.error('Ошибка поиска:', error);
+            console.log('Переключаемся на локальный поиск...');
+            // Если поиск не работает, загружаем все книги и фильтруем локально
+            if (this.allBooks.length === 0) {
+                await this.loadBooks();
+            }
+            this.filterBooksBySearch();
+        }
+    }
+    
+    // Локальная фильтрация по поисковому запросу
+    filterBooksBySearch() {
+        if (!this.searchQuery.trim()) {
+            this.applyFilters();
+            return;
+        }
+        
+        const query = this.searchQuery.toLowerCase().trim();
+        this.filteredBooks = this.allBooks.filter(book => {
+            const title = (book.title || '').toLowerCase();
+            const author = (book.author?.name || '').toLowerCase();
+            const description = (book.description || '').toLowerCase();
+            
+            return title.includes(query) || 
+                   author.includes(query) || 
+                   description.includes(query);
+        });
+        
+        // Применяем дополнительные фильтры
+        this.applyFiltersWithoutSearch();
+        this.currentPage = 1;
+        this.renderBooks();
+        this.renderPagination();
     }
     
     // Извлечение уникальных значений для фильтров
@@ -137,6 +228,40 @@ class CatalogManager {
     
     // Настройка обработчиков событий
     setupEventListeners() {
+        // Поиск по вводу
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.searchQuery = e.target.value;
+                // Добавляем задержку для поиска
+                clearTimeout(this.searchTimeout);
+                this.searchTimeout = setTimeout(() => {
+                    this.performSearch();
+                }, 500);
+            });
+            
+            // Поиск по Enter
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.searchQuery = e.target.value;
+                    this.performSearch();
+                }
+            });
+        }
+        
+        // Кнопка поиска
+        const searchBtn = document.getElementById('search-btn');
+        if (searchBtn) {
+            searchBtn.addEventListener('click', () => {
+                const searchInput = document.getElementById('search-input');
+                if (searchInput) {
+                    this.searchQuery = searchInput.value;
+                    this.performSearch();
+                }
+            });
+        }
+        
         // Фильтры
         document.getElementById('genre-filter').addEventListener('change', (e) => {
             this.currentFilters.genre = e.target.value;
@@ -166,16 +291,6 @@ class CatalogManager {
         // Обработчик для кнопок "В корзину" (делегирование событий)
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('add-to-cart-btn')) {
-                e.preventDefault(); // Предотвращаем переход по ссылке
-                e.stopPropagation(); // Останавливаем всплытие события
-                
-                const bookId = e.target.dataset.bookId;
-                const bookTitle = e.target.dataset.bookTitle;
-                const bookPrice = parseFloat(e.target.dataset.bookPrice);
-                
-                console.log('Добавление в корзину из каталога:', { bookId, bookTitle, bookPrice });
-                
-                // Вызываем функцию добавления в корзину
                 this.addToCart(e.target);
             }
         });
@@ -184,7 +299,11 @@ class CatalogManager {
     // Применение фильтров
     applyFilters() {
         this.filteredBooks = [...this.allBooks];
-        
+        this.applyFiltersWithoutSearch();
+    }
+    
+    // Применение фильтров без сброса поиска
+    applyFiltersWithoutSearch() {
         // Фильтр по жанру
         if (this.currentFilters.genre) {
             this.filteredBooks = this.filteredBooks.filter(book => {
@@ -272,145 +391,45 @@ class CatalogManager {
     
     // Добавление товара в корзину
     addToCart(button) {
-        try {
-            const bookId = button.dataset.bookId;
-            const bookTitle = button.dataset.bookTitle;
-            const bookPrice = parseFloat(button.dataset.bookPrice);
-            
-            console.log('addToCart вызвана с параметрами:', { bookId, bookTitle, bookPrice });
-            
-            // Получаем текущую корзину из localStorage
-            let cart = JSON.parse(localStorage.getItem('cart')) || [];
-            console.log('Текущая корзина до добавления:', cart);
-            
-            // Проверяем, есть ли уже такой товар в корзине
-            const existingItem = cart.find(item => item.id === bookId);
-            
-            if (existingItem) {
-                existingItem.quantity += 1;
-                console.log('Увеличиваем количество для существующего товара');
-            } else {
-                cart.push({
-                    id: bookId,
-                    title: bookTitle,
-                    price: bookPrice,
-                    quantity: 1
-                });
-                console.log('Добавляем новый товар в корзину');
-            }
-            
-            // Сохраняем обновленную корзину
-            localStorage.setItem('cart', JSON.stringify(cart));
-            console.log('Корзина сохранена в localStorage:', cart);
-            
-            // Обновляем счетчик корзины
-            this.updateCartCount();
-            
-            // Также вызываем глобальное обновление
-            if (window.updateGlobalCartCount) {
-                window.updateGlobalCartCount();
-            }
-            
-            // Вызываем обновление из navigation.js
-            if (window.Navigation && window.Navigation.updateCartCount) {
-                window.Navigation.updateCartCount();
-            }
-            
-            // Показываем уведомление
-            this.showCartNotification(bookTitle);
-            
-        } catch (error) {
-            console.error('Ошибка в addToCart:', error);
-            alert('Ошибка при добавлении товара в корзину: ' + error.message);
+        const bookId = button.dataset.bookId;
+        const bookTitle = button.dataset.bookTitle;
+        const bookPrice = parseFloat(button.dataset.bookPrice);
+        
+        // Получаем текущую корзину из localStorage
+        let cart = JSON.parse(localStorage.getItem('cart')) || [];
+        
+        // Проверяем, есть ли уже такой товар в корзине
+        const existingItem = cart.find(item => item.id === bookId);
+        
+        if (existingItem) {
+            existingItem.quantity += 1;
+        } else {
+            cart.push({
+                id: bookId,
+                title: bookTitle,
+                price: bookPrice,
+                quantity: 1
+            });
         }
+        
+        // Сохраняем обновленную корзину
+        localStorage.setItem('cart', JSON.stringify(cart));
+        
+        // Обновляем счетчик корзины
+        this.updateCartCount();
+        
+        // Показываем уведомление
+        this.showCartNotification(bookTitle);
     }
     
     // Обновление счетчика корзины
     updateCartCount() {
-        try {
-            const cart = JSON.parse(localStorage.getItem('cart')) || [];
-            const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-            
-            console.log('Обновляем счетчик корзины. Товаров в корзине:', totalItems);
-            
-            // Пробуем найти элемент разными способами
-            let cartCountElement = document.getElementById('cart-count');
-            
-            if (!cartCountElement) {
-                // Пробуем найти по селектору
-                cartCountElement = document.querySelector('#cart-count');
-            }
-            
-            if (!cartCountElement) {
-                // Пробуем найти среди всех span элементов
-                const allSpans = document.querySelectorAll('span');
-                for (let span of allSpans) {
-                    if (span.id === 'cart-count') {
-                        cartCountElement = span;
-                        break;
-                    }
-                }
-            }
-            
-            if (!cartCountElement) {
-                // Пробуем найти в навигации
-                const navMenu = document.querySelector('.nav-menu');
-                if (navMenu) {
-                    cartCountElement = navMenu.querySelector('#cart-count');
-                }
-            }
-            
-            if (cartCountElement) {
-                cartCountElement.textContent = totalItems;
-                console.log('Счетчик корзины обновлен:', totalItems);
-            } else {
-                console.warn('Элемент cart-count не найден всеми способами, попробуем еще раз через 500мс');
-                console.log('DOM состояние:', document.readyState);
-                console.log('Все span элементы:', document.querySelectorAll('span').length);
-                console.log('Все элементы с ID:', document.querySelectorAll('[id]').length);
-                
-                // Попробуем еще раз через 500мс, если элемент не найден
-                setTimeout(() => {
-                    const retryElement = document.getElementById('cart-count');
-                    if (retryElement) {
-                        retryElement.textContent = totalItems;
-                        console.log('Счетчик корзины обновлен при повторной попытке:', totalItems);
-                    } else {
-                        console.error('Элемент cart-count так и не найден после повторной попытки');
-                        console.log('Попробуем создать элемент программно...');
-                        this.createCartCountElement(totalItems);
-                    }
-                }, 500);
-            }
-        } catch (error) {
-            console.error('Ошибка при обновлении счетчика корзины:', error);
-        }
-    }
-    
-    // Создание элемента cart-count программно, если он не найден
-    createCartCountElement(totalItems) {
-        try {
-            const navMenu = document.querySelector('.nav-menu');
-            if (navMenu) {
-                // Ищем ссылку на корзину
-                const cartLink = navMenu.querySelector('a[href*="cart"]');
-                if (cartLink) {
-                    // Создаем span элемент
-                    const cartCountSpan = document.createElement('span');
-                    cartCountSpan.id = 'cart-count';
-                    cartCountSpan.textContent = totalItems;
-                    
-                    // Вставляем в ссылку на корзину
-                    cartLink.innerHTML = cartLink.innerHTML.replace(/\(\d+\)/, `(${totalItems})`);
-                    if (!cartLink.innerHTML.includes('(')) {
-                        cartLink.innerHTML += ` (${totalItems})`;
-                    }
-                    
-                    console.log('Элемент cart-count создан программно:', totalItems);
-                }
-            }
-        } catch (error) {
-            console.error('Ошибка при создании элемента cart-count:', error);
+        const cart = JSON.parse(localStorage.getItem('cart')) || [];
+        const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+        
+        const cartCountElement = document.getElementById('cart-count');
+        if (cartCountElement) {
+            cartCountElement.textContent = totalItems;
         }
     }
     
@@ -465,7 +484,11 @@ class CatalogManager {
         const booksToShow = this.filteredBooks.slice(startIndex, endIndex);
         
         if (booksToShow.length === 0) {
-            grid.innerHTML = '<div class="no-results">Книги не найдены</div>';
+            if (this.searchQuery) {
+                grid.innerHTML = `<div class="no-results">По запросу "${this.searchQuery}" ничего не найдено</div>`;
+            } else {
+                grid.innerHTML = '<div class="no-results">Книги не найдены</div>';
+            }
             return;
         }
         
@@ -479,27 +502,25 @@ class CatalogManager {
         const rating = book.rating || 0;
         
         return `
-            <a href="book-detail.html?id=${book.id}" class="book-card-link" data-book-id="${book.id}">
-                <div class="book-card">
-                    <div class="book-image-wrapper">
-                        <div class="book-image">
-                            <img src="${coverImage}" alt="${book.title}" onerror="this.src='assets/images/placeholder.svg'">
-                        </div>
-                    </div>
-                    <div class="book-content">
-                        <div class="book-author">${authorName}</div>
-                        <div class="book-title">${book.title}</div>
-                        <div class="book-rating">
-                            <span class="rating-stars">★</span>
-                            <span class="rating-value">${rating.toFixed(1)}</span>
-                        </div>
-                        <div class="book-price">${book.price} ₽</div>
-                        <button class="add-to-cart-btn" data-book-id="${book.id}" data-book-title="${book.title}" data-book-price="${book.price}">
-                            В корзину
-                        </button>
+            <div class="book-card" data-book-id="${book.id}">
+                <div class="book-image-wrapper">
+                    <div class="book-image">
+                        <img src="${coverImage}" alt="${book.title}" onerror="this.src='assets/images/placeholder.svg'">
                     </div>
                 </div>
-            </a>
+                <div class="book-content">
+                    <div class="book-author">${authorName}</div>
+                    <div class="book-title">${book.title}</div>
+                    <div class="book-rating">
+                        <span class="rating-stars">★</span>
+                        <span class="rating-value">${rating.toFixed(1)}</span>
+                    </div>
+                    <div class="book-price">${book.price} ₽</div>
+                    <button class="add-to-cart-btn" data-book-id="${book.id}" data-book-title="${book.title}" data-book-price="${book.price}">
+                        В корзину
+                    </button>
+                </div>
+            </div>
         `;
     }
     
@@ -575,35 +596,7 @@ class CatalogManager {
     }
 }
 
-// Глобальная функция для обновления счетчика корзины
-window.updateGlobalCartCount = function() {
-    try {
-        const cart = JSON.parse(localStorage.getItem('cart')) || [];
-        const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-        
-        const cartCountElement = document.getElementById('cart-count');
-        if (cartCountElement) {
-            cartCountElement.textContent = totalItems;
-            console.log('Глобальное обновление счетчика корзины:', totalItems);
-        } else {
-            console.warn('Элемент cart-count не найден для глобального обновления');
-        }
-        
-        // Также вызываем обновление из navigation.js
-        if (window.Navigation && window.Navigation.updateCartCount) {
-            window.Navigation.updateCartCount();
-        }
-    } catch (error) {
-        console.error('Ошибка при глобальном обновлении счетчика корзины:', error);
-    }
-};
-
-// Инициализация каталога при загрузке страницы
+// Инициализация поиска при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
-    new CatalogManager();
-    
-    // Обновляем счетчик корзины при загрузке страницы
-    setTimeout(() => {
-        window.updateGlobalCartCount();
-    }, 200);
+    new SearchManager();
 });

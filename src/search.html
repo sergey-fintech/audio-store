@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Каталог аудиокниг - Аудитерия</title>
+    <title>Поиск по книгам - Audio Store</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="styles/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -16,11 +16,11 @@
                 <img src="assets/images/header-logo.svg" alt="Аудитерия">
             </div>
             <nav class="nav-menu">
-                <a href="index.html">Каталог</a>
+                <a href="index.html#catalog">Каталог</a>
                 <a href="cart.html">Корзина (<span id="cart-count">0</span>)</a>
             </nav>
             <div class="nav-actions">
-                <button class="search-btn" onclick="window.location.href='search.html'">
+                <button class="search-btn">
                     <img src="assets/images/search-icon.svg" alt="Поиск">
                 </button>
                 <button class="login-btn" onclick="window.location.href='login.html'">Войти</button>
@@ -38,7 +38,18 @@
     <!-- Основной контент -->
     <main class="catalog-main">
         <div class="container">
-            <h1 class="catalog-title">Каталог аудиокниг</h1>
+            <h1 class="catalog-title">Поиск по аудиокнигам</h1>
+            
+            <!-- Поле поиска -->
+            <div class="search-input-wrapper">
+                <div class="search-form">
+                    <input type="text" id="search-input" placeholder="Введите название или автора..." class="search-input">
+                    <button type="button" id="search-btn" class="search-button">
+                        <img src="assets/images/search-icon.svg" alt="Поиск">
+                        Найти
+                    </button>
+                </div>
+            </div>
             
             <!-- Секция фильтров -->
             <section class="filters-section">
@@ -167,7 +178,7 @@
     </footer>
 
     <script src="scripts/auth.js"></script>
-    <script src="scripts/catalog.js"></script>
     <script src="scripts/navigation.js"></script>
+    <script src="scripts/search.js"></script>
 </body>
 </html>

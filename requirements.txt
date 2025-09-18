@@ -11,6 +11,7 @@ pydantic>=1.8.0
 python-multipart>=0.0.5
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+psutil>=5.8.0
 
 # Для разработки и тестирования
 pytest>=6.2.0
@@ -20,3 +21,5 @@ httpx>=0.19.0
 # Для работы с базой данных
 psycopg2-binary>=2.9.0  # Для PostgreSQL
 pymysql>=1.0.0  # Для MySQL 
+
+openai>=1.0.0

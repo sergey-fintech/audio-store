@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест корзины</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .cart-display {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border: 1px solid #dee2e6;
+        }
+        .cart-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .cart-item:last-child {
+            border-bottom: none;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Тест корзины</h1>
+        
+        <div>
+            <button class="test-button" onclick="addTestBook1()">Добавить книгу 1</button>
+            <button class="test-button" onclick="addTestBook2()">Добавить книгу 2</button>
+            <button class="test-button" onclick="clearCart()">Очистить корзину</button>
+            <button class="test-button" onclick="showCart()">Показать корзину</button>
+        </div>
+        
+        <div class="cart-display">
+            <h3>Содержимое корзины:</h3>
+            <div id="cart-content">Корзина пуста</div>
+            <div id="cart-count">Количество товаров: 0</div>
+        </div>
+        
+        <div>
+            <h3>localStorage содержимое:</h3>
+            <pre id="localStorage-content"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Функция для добавления тестовой книги 1
+        function addTestBook1() {
+            addToCart('1', 'Тестовая книга 1', 299);
+        }
+        
+        // Функция для добавления тестовой книги 2
+        function addTestBook2() {
+            addToCart('2', 'Тестовая книга 2', 399);
+        }
+        
+        // Функция для добавления товара в корзину
+        function addToCart(bookId, bookTitle, bookPrice) {
+            try {
+                console.log('Добавляем в корзину:', { bookId, bookTitle, bookPrice });
+                
+                // Получаем текущую корзину из localStorage
+                let cart = JSON.parse(localStorage.getItem('cart')) || [];
+                console.log('Текущая корзина:', cart);
+                
+                // Проверяем, есть ли уже такой товар в корзине
+                const existingItem = cart.find(item => item.id === bookId);
+                
+                if (existingItem) {
+                    existingItem.quantity += 1;
+                    console.log('Увеличиваем количество для существующего товара');
+                } else {
+                    cart.push({
+                        id: bookId,
+                        title: bookTitle,
+                        price: bookPrice,
+                        quantity: 1
+                    });
+                    console.log('Добавляем новый товар');
+                }
+                
+                // Сохраняем обновленную корзину
+                localStorage.setItem('cart', JSON.stringify(cart));
+                console.log('Корзина сохранена:', cart);
+                
+                // Обновляем отображение
+                updateCartDisplay();
+                
+                // Показываем уведомление
+                showNotification(`Добавлено: ${bookTitle}`);
+                
+            } catch (error) {
+                console.error('Ошибка при добавлении в корзину:', error);
+                alert('Ошибка при добавлении товара в корзину: ' + error.message);
+            }
+        }
+        
+        // Функция для очистки корзины
+        function clearCart() {
+            localStorage.removeItem('cart');
+            updateCartDisplay();
+            showNotification('Корзина очищена');
+        }
+        
+        // Функция для показа корзины
+        function showCart() {
+            updateCartDisplay();
+        }
+        
+        // Функция для обновления отображения корзины
+        function updateCartDisplay() {
+            try {
+                const cart = JSON.parse(localStorage.getItem('cart')) || [];
+                const cartContent = document.getElementById('cart-content');
+                const cartCount = document.getElementById('cart-count');
+                const localStorageContent = document.getElementById('localStorage-content');
+                
+                if (cart.length === 0) {
+                    cartContent.innerHTML = 'Корзина пуста';
+                    cartCount.textContent = 'Количество товаров: 0';
+                } else {
+                    let html = '';
+                    let totalItems = 0;
+                    
+                    cart.forEach(item => {
+                        html += `<div class="cart-item">
+                            <strong>${item.title}</strong> - ${item.price} ₽ (количество: ${item.quantity})
+                        </div>`;
+                        totalItems += item.quantity;
+                    });
+                    
+                    cartContent.innerHTML = html;
+                    cartCount.textContent = `Количество товаров: ${totalItems}`;
+                }
+                
+                // Показываем содержимое localStorage
+                localStorageContent.textContent = JSON.stringify(localStorage, null, 2);
+                
+            } catch (error) {
+                console.error('Ошибка при обновлении отображения корзины:', error);
+            }
+        }
+        
+        // Функция для показа уведомлений
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 3000);
+        }
+        
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Тест корзины загружен');
+            updateCartDisplay();
+        });
+    </script>
+</body>
+</html>
+

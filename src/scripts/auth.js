@@ -96,6 +96,30 @@ async function registerUser(email, password) {
 // Функция для аутентификации пользователя
 async function authenticateUser(email, password) {
     try {
+        // Проверяем админские данные
+        if (email === 'admin' && password === 'admin123') {
+            showNotification('Вход в админ-панель выполнен успешно!', 'success');
+            
+            // Сохраняем админский токен
+            const adminToken = generateAdminToken();
+            localStorage.setItem('admin_token', adminToken);
+            localStorage.setItem('admin_username', 'admin');
+            localStorage.setItem('admin_login_time', Date.now().toString());
+            
+            // Обновляем UI
+            if (window.Navigation && window.Navigation.updateUI) {
+                window.Navigation.updateUI();
+            }
+            
+            // Перенаправляем в админ-панель
+            setTimeout(() => {
+                window.location.href = 'admin/admin.html';
+            }, 1500);
+            
+            return { success: true, isAdmin: true };
+        }
+        
+        // Обычная аутентификация через API
         const response = await fetch(`${AUTH_API_BASE_URL}/token`, {
             method: 'POST',
             headers: {
@@ -111,8 +135,9 @@ async function authenticateUser(email, password) {
             const tokenData = await response.json();
             showNotification('Вход выполнен успешно! Перенаправляем...', 'success');
             
-            // Сохраняем токен в localStorage
+            // Сохраняем токен и email в localStorage
             localStorage.setItem('access_token', tokenData.access_token);
+            localStorage.setItem('user_email', email);
             
             // Перенаправляем на главную страницу через 2 секунды
             setTimeout(() => {
@@ -122,6 +147,11 @@ async function authenticateUser(email, password) {
             // Обновляем состояние аутентификации на главной странице
             if (window.AudioStore && window.AudioStore.updateAuthState) {
                 await window.AudioStore.updateAuthState();
+            }
+            
+            // Обновляем UI
+            if (window.Navigation && window.Navigation.updateUI) {
+                window.Navigation.updateUI();
             }
             
             return { success: true, data: tokenData };
@@ -139,20 +169,52 @@ async function authenticateUser(email, password) {
     }
 }
 
+// Функция для генерации админского токена
+function generateAdminToken() {
+    const timestamp = Date.now();
+    const randomData = Math.random().toString(36).substring(2);
+    const tokenData = `admin:${timestamp}:${randomData}`;
+    
+    // Простое хеширование
+    let hash = 0;
+    for (let i = 0; i < tokenData.length; i++) {
+        const char = tokenData.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    
+    return Math.abs(hash).toString(36);
+}
+
 // Функция для проверки аутентификации
 function isAuthenticated() {
     const token = localStorage.getItem('access_token');
-    return !!token;
+    const adminToken = localStorage.getItem('admin_token');
+    return !!(token || adminToken);
+}
+
+// Функция для проверки админских прав
+function isAdmin() {
+    const adminToken = localStorage.getItem('admin_token');
+    return !!adminToken;
 }
 
 // Функция для выхода из системы
 function logout() {
+    const isAdminUser = isAdmin();
+    
+    // Очищаем все токены и данные пользователя
     localStorage.removeItem('access_token');
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_username');
+    localStorage.removeItem('admin_login_time');
+    localStorage.removeItem('user_email');
+    
     showNotification('Вы успешно вышли из системы', 'success');
     
-    // Перенаправляем на страницу входа
+    // Перенаправляем на главную страницу
     setTimeout(() => {
-        window.location.href = 'login.html';
+        window.location.href = 'index.html';
     }, 1500);
 }
 
@@ -227,6 +289,25 @@ function initLogoutButton() {
     }
 }
 
+// Функция для инициализации кнопки входа в навигации
+function initLoginButton() {
+    const loginBtn = document.querySelector('.login-btn');
+    
+    if (loginBtn) {
+        loginBtn.addEventListener('click', function(e) {
+            // Проверяем, авторизован ли пользователь
+            if (isAuthenticated()) {
+                e.preventDefault();
+                showNotification('Вы уже авторизованы', 'info');
+                return;
+            }
+            
+            // Если не авторизован, переходим на страницу входа
+            window.location.href = 'login.html';
+        });
+    }
+}
+
 // Функция для проверки аутентификации и обновления UI
 function updateAuthUI() {
     const isAuth = isAuthenticated();
@@ -246,6 +327,11 @@ function updateAuthUI() {
             window.location.href = 'login.html';
         }, 2000);
     }
+    
+    // Обновляем UI на всех страницах
+    if (window.Navigation && window.Navigation.updateUI) {
+        window.Navigation.updateUI();
+    }
 }
 
 // Инициализация при загрузке страницы
@@ -256,6 +342,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initRegisterForm();
     initLoginForm();
     initLogoutButton();
+    initLoginButton();
     
     // Проверяем аутентификацию и обновляем UI
     updateAuthUI();
@@ -266,7 +353,10 @@ window.Auth = {
     registerUser,
     authenticateUser,
     isAuthenticated,
+    isAdmin,
     logout,
     getAccessToken,
-    showNotification
+    showNotification,
+    generateAdminToken,
+    initLoginButton
 };

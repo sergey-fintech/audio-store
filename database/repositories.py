@@ -303,25 +303,32 @@ class AudiobookRepository:
             joinedload(Audiobook.categories)
         ).join(Audiobook.categories).filter(Category.id == category_id).all()
     
-    def search(self, query: str) -> List[Audiobook]:
+    def search(self, query: str, limit: Optional[int] = None) -> List[Audiobook]:
         """
-        Поиск аудиокниг по названию или описанию.
+        Поиск аудиокниг по названию, автору или описанию.
         
         Args:
             query: Поисковый запрос
+            limit: Максимальное количество результатов
             
         Returns:
             Список найденных аудиокниг
         """
-        return self.session.query(Audiobook).options(
+        query_obj = self.session.query(Audiobook).options(
             joinedload(Audiobook.author),
             joinedload(Audiobook.categories)
         ).filter(
             or_(
                 Audiobook.title.ilike(f"%{query}%"),
-                Audiobook.description.ilike(f"%{query}%")
+                Audiobook.description.ilike(f"%{query}%"),
+                Author.name.ilike(f"%{query}%")
             )
-        ).all()
+        )
+        
+        if limit:
+            query_obj = query_obj.limit(limit)
+            
+        return query_obj.all()
     
     def update(self, audiobook_id: int, **kwargs) -> Optional[Audiobook]:
         """

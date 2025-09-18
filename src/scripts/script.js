@@ -1,7 +1,7 @@
 // Основной JavaScript файл для AudioStore
 
 // Глобальные переменные
-let cartItems = JSON.parse(localStorage.getItem('cartItems')) || [];
+let cartItems = JSON.parse(localStorage.getItem('cart')) || [];
 
 // Ждем загрузки DOM
 document.addEventListener('DOMContentLoaded', async function() {
@@ -29,9 +29,9 @@ function initNavigation() {
     
     navLinks.forEach(link => {
         link.addEventListener('click', function(e) {
-                    // Не предотвращаем переход для ссылок на корзину и админ-панель
+                    // Не предотвращаем переход для ссылок на корзину, админ-панель и каталог
         const href = this.getAttribute('href');
-        if (href === 'cart.html' || href === 'admin/admin.html') {
+        if (href === 'cart.html' || href === 'admin/admin.html' || href.includes('index.html')) {
             return;
         }
             
@@ -51,11 +51,11 @@ function initNavigation() {
 
 // Функции для работы с корзиной
 function getCart() {
-    return JSON.parse(localStorage.getItem('cartItems')) || [];
+    return JSON.parse(localStorage.getItem('cart')) || [];
 }
 
 function saveCart(cart) {
-    localStorage.setItem('cartItems', JSON.stringify(cart));
+    localStorage.setItem('cart', JSON.stringify(cart));
     cartItems = cart; // Обновляем глобальную переменную
 }
 
@@ -136,7 +136,7 @@ function addToCartOld(bookTitle, bookPrice) {
         title: bookTitle,
         price: bookPrice
     });
-    localStorage.setItem('cartItems', JSON.stringify(cartItems));
+    localStorage.setItem('cart', JSON.stringify(cartItems));
     
     // Показываем уведомление
     showNotification('Книга добавлена в корзину!');
@@ -148,10 +148,8 @@ function initSearch() {
     
     if (searchBtn) {
         searchBtn.addEventListener('click', function() {
-            const searchTerm = prompt('Введите название книги или автора:');
-            if (searchTerm) {
-                performSearch(searchTerm);
-            }
+            // Переходим на страницу поиска
+            window.location.href = 'search.html';
         });
     }
     
@@ -279,7 +277,7 @@ function initLogout() {
                 // Очищаем данные пользователя
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('user');
-                localStorage.removeItem('cartItems');
+                localStorage.removeItem('cart');
                 cartItems = [];
                 
                 // Показываем уведомление

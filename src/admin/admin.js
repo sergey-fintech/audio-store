@@ -46,13 +46,20 @@ function redirectToLogin() {
 // Выход из системы
 function logoutAdmin() {
     if (confirm('Вы уверены, что хотите выйти из системы?')) {
-        clearAdminAuth();
-        redirectToLogin();
+        // Используем общую функцию выхода из Auth модуля
+        if (window.Auth && window.Auth.logout) {
+            window.Auth.logout();
+        } else {
+            // Fallback на старую логику
+            clearAdminAuth();
+            redirectToLogin();
+        }
     }
 }
 
 // Конфигурация API
 const API_BASE_URL = 'http://localhost:8002'; // Порт каталога товаров
+const AI_RECOMMENDER_URL = 'http://localhost:8005'; // Порт AI-рекомендатора
 
 // Элементы DOM
 const productForm = document.getElementById('product-form');
@@ -60,6 +67,13 @@ const productsTable = document.getElementById('products-table');
 const productsTbody = document.getElementById('products-tbody');
 const productsContainer = document.getElementById('products-container');
 const cancelEditBtn = document.getElementById('cancel-edit');
+
+// AI Recommendations элементы
+const generateBtn = document.getElementById('generate-btn');
+const aiPrompt = document.getElementById('ai-prompt');
+const aiModel = document.getElementById('ai-model');
+const aiResult = document.getElementById('ai-result');
+const aiResultContent = document.querySelector('.ai-result-content');
 
 // Состояние приложения
 let isEditing = false;
@@ -123,11 +137,12 @@ async function fetchAndRenderProducts() {
                 <td>${product.id}</td>
                 <td>${escapeHtml(product.title)}</td>
                 <td>${escapeHtml(authorName)}</td>
-                <td>${escapeHtml(description)}</td>
+                <td class="description-cell" data-product-id="${product.id}">${escapeHtml(description)}</td>
                 <td class="price">${product.price} ₽</td>
                 <td class="actions">
                     <button class="edit" data-product-id="${product.id}">Редактировать</button>
                     <button class="delete" data-product-id="${product.id}">Удалить</button>
+                    <button class="generate-description-btn" data-product-id="${product.id}">AI-описание</button>
                 </td>
             `;
             productsTbody.appendChild(row);
@@ -407,6 +422,15 @@ productsTable.addEventListener('click', async function(e) {
         } catch (error) {
             showMessage(`Ошибка при загрузке товара: ${error.message}`, 'error');
         }
+    } else if (target.classList.contains('generate-description-btn')) {
+        // Генерация AI-описания
+        const productId = target.getAttribute('data-product-id');
+        
+        try {
+            await generateDescriptionForProduct(productId, target);
+        } catch (error) {
+            showMessage(`Ошибка при генерации описания: ${error.message}`, 'error');
+        }
     }
 });
 
@@ -421,6 +445,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const logoutBtn = document.getElementById('admin-logout-btn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', logoutAdmin);
+    }
+    
+    // Обновляем UI навигации
+    if (window.Navigation && window.Navigation.updateUI) {
+        window.Navigation.updateUI();
     }
     
     // Загружаем данные и инициализируем форму
@@ -470,3 +499,199 @@ window.addEventListener('online', function() {
 window.addEventListener('offline', function() {
     showMessage('Отсутствует подключение к интернету', 'error');
 });
+
+// ===== AI RECOMMENDATIONS FUNCTIONALITY =====
+
+// Функция для генерации AI-рекомендаций
+async function generateAIRecommendations() {
+    const prompt = aiPrompt.value.trim();
+    const model = aiModel.value;
+    
+    if (!prompt) {
+        showMessage('Пожалуйста, введите запрос для AI-рекомендаций', 'error');
+        return;
+    }
+    
+    // Показываем состояние загрузки
+    setGenerateButtonLoading(true);
+    hideAIResult();
+    
+    try {
+        console.log('Отправляем запрос к AI-рекомендатору:', { prompt, model });
+        
+        const response = await fetch(`${AI_RECOMMENDER_URL}/api/v1/recommendations/generate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                prompt: prompt,
+                model: model
+            })
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        }
+        
+        const result = await response.json();
+        console.log('Получен ответ от AI-рекомендатора:', result);
+        
+        // Отображаем результат
+        displayAIResult(result);
+        showMessage('AI-рекомендации успешно сгенерированы!', 'success');
+        
+    } catch (error) {
+        console.error('Ошибка при генерации AI-рекомендаций:', error);
+        showMessage(`Ошибка при генерации рекомендаций: ${error.message}`, 'error');
+        hideAIResult();
+    } finally {
+        setGenerateButtonLoading(false);
+    }
+}
+
+// Функция для отображения результата AI-анализа
+function displayAIResult(result) {
+    const modelAlias = result.model_alias || result.model || 'Неизвестная модель';
+    const totalBooks = result.total_books_analyzed || 'Не указано';
+    const recommendations = result.recommendations || 'Результат не получен';
+    
+    aiResultContent.innerHTML = `
+        <div class="ai-result-meta">
+            <p><strong>Модель:</strong> ${modelAlias}</p>
+            <p><strong>Проанализировано книг:</strong> ${totalBooks}</p>
+        </div>
+        <div class="ai-result-text">
+            <h4>Рекомендации:</h4>
+            <div class="recommendations-content">${formatRecommendations(recommendations)}</div>
+        </div>
+    `;
+    
+    aiResult.style.display = 'block';
+    
+    // Прокручиваем к результату
+    aiResult.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Функция для форматирования рекомендаций
+function formatRecommendations(text) {
+    // Простое форматирование текста - заменяем переносы строк на <br>
+    return text
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>');
+}
+
+// Функция для скрытия результата AI-анализа
+function hideAIResult() {
+    aiResult.style.display = 'none';
+    aiResultContent.innerHTML = '';
+}
+
+// Функция для управления состоянием кнопки генерации
+function setGenerateButtonLoading(isLoading) {
+    const btnText = generateBtn.querySelector('.btn-text');
+    const btnLoading = generateBtn.querySelector('.btn-loading');
+    
+    if (isLoading) {
+        generateBtn.disabled = true;
+        btnText.style.display = 'none';
+        btnLoading.style.display = 'inline';
+    } else {
+        generateBtn.disabled = false;
+        btnText.style.display = 'inline';
+        btnLoading.style.display = 'none';
+    }
+}
+
+// Обработчик кнопки генерации AI-рекомендаций
+generateBtn.addEventListener('click', generateAIRecommendations);
+
+// Обработчик Enter в textarea для быстрой генерации
+aiPrompt.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && e.ctrlKey) {
+        e.preventDefault();
+        generateAIRecommendations();
+    }
+});
+
+// ===== AI DESCRIPTION GENERATION FUNCTIONALITY =====
+
+// Функция для генерации описания конкретного товара
+async function generateDescriptionForProduct(productId, buttonElement) {
+    try {
+        // Показываем состояние загрузки на кнопке
+        setDescriptionButtonLoading(buttonElement, true);
+        
+        console.log(`Генерируем описание для товара ${productId}`);
+        
+        // Отправляем запрос к эндпоинту-оркестратору
+        const response = await fetch(`${AI_RECOMMENDER_URL}/api/v1/recommendations/generate-description/${productId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'gemini-pro' // Используем модель по умолчанию
+            })
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        }
+        
+        const result = await response.json();
+        console.log('Получен ответ от AI-оркестратора:', result);
+        
+        // Обновляем ячейку описания в таблице
+        updateDescriptionCell(productId, result.generated_description);
+        
+        showMessage(`Описание для товара ${productId} успешно сгенерировано!`, 'success');
+        
+    } catch (error) {
+        console.error('Ошибка при генерации описания:', error);
+        showMessage(`Ошибка при генерации описания: ${error.message}`, 'error');
+    } finally {
+        // Убираем состояние загрузки с кнопки
+        setDescriptionButtonLoading(buttonElement, false);
+    }
+}
+
+// Функция для управления состоянием кнопки генерации описания
+function setDescriptionButtonLoading(buttonElement, isLoading) {
+    if (isLoading) {
+        buttonElement.disabled = true;
+        buttonElement.textContent = 'Генерация...';
+        buttonElement.style.opacity = '0.6';
+    } else {
+        buttonElement.disabled = false;
+        buttonElement.textContent = 'AI-описание';
+        buttonElement.style.opacity = '1';
+    }
+}
+
+// Функция для обновления ячейки описания в таблице
+function updateDescriptionCell(productId, newDescription) {
+    // Находим ячейку описания для данного товара
+    const descriptionCell = document.querySelector(`.description-cell[data-product-id="${productId}"]`);
+    
+    if (descriptionCell) {
+        // Обновляем содержимое ячейки
+        descriptionCell.innerHTML = escapeHtml(newDescription);
+        
+        // Добавляем визуальный эффект обновления
+        descriptionCell.style.backgroundColor = '#d4edda';
+        descriptionCell.style.transition = 'background-color 0.3s ease';
+        
+        // Убираем эффект через 2 секунды
+        setTimeout(() => {
+            descriptionCell.style.backgroundColor = '';
+        }, 2000);
+        
+        console.log(`Ячейка описания для товара ${productId} обновлена`);
+    } else {
+        console.warn(`Ячейка описания для товара ${productId} не найдена`);
+    }
+}

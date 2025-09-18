@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест AI-генерации описаний</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .test-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .description-cell {
+            max-width: 300px;
+            word-wrap: break-word;
+        }
+        .actions {
+            white-space: nowrap;
+        }
+        .generate-description-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .generate-description-btn:hover {
+            background: #218838;
+        }
+        .generate-description-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>Тест AI-генерации описаний</h1>
+    
+    <div class="test-section">
+        <h2>Проверка доступности сервисов</h2>
+        <button class="test-button" onclick="checkServices()">Проверить сервисы</button>
+        <div id="services-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Загрузка товаров</h2>
+        <button class="test-button" onclick="loadProducts()">Загрузить товары</button>
+        <div id="products-result"></div>
+        <table id="products-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                    <th>Автор</th>
+                    <th>Описание</th>
+                    <th>Цена</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody id="products-tbody"></tbody>
+        </table>
+    </div>
+    
+    <div class="test-section">
+        <h2>Тест генерации описания</h2>
+        <p>Используйте кнопки "AI-описание" в таблице выше для тестирования генерации описаний.</p>
+        <div id="generation-result"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8002';
+        const AI_RECOMMENDER_URL = 'http://localhost:8005';
+        
+        // Функция для экранирования HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Функция для отображения результата
+        function showResult(elementId, message, type = 'success') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="result ${type}">${message}</div>`;
+        }
+        
+        // Проверка доступности сервисов
+        async function checkServices() {
+            showResult('services-result', 'Проверяем сервисы...', 'loading');
+            
+            try {
+                // Проверяем catalog сервис
+                const catalogResponse = await fetch(`${API_BASE_URL}/api/v1/audiobooks`);
+                const catalogStatus = catalogResponse.ok ? '✅ Доступен' : '❌ Недоступен';
+                
+                // Проверяем recommender сервис
+                const recommenderResponse = await fetch(`${AI_RECOMMENDER_URL}/health`);
+                const recommenderStatus = recommenderResponse.ok ? '✅ Доступен' : '❌ Недоступен';
+                
+                showResult('services-result', 
+                    `Catalog Service: ${catalogStatus}<br>AI Recommender Service: ${recommenderStatus}`, 
+                    'success'
+                );
+            } catch (error) {
+                showResult('services-result', `Ошибка: ${error.message}`, 'error');
+            }
+        }
+        
+        // Загрузка товаров
+        async function loadProducts() {
+            showResult('products-result', 'Загружаем товары...', 'loading');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/v1/audiobooks`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const products = await response.json();
+                
+                if (products.length === 0) {
+                    showResult('products-result', 'Товары не найдены', 'error');
+                    return;
+                }
+                
+                // Заполняем таблицу
+                const tbody = document.getElementById('products-tbody');
+                tbody.innerHTML = '';
+                
+                products.forEach(product => {
+                    const row = document.createElement('tr');
+                    const authorName = product.author ? product.author.name : `ID: ${product.author_id}`;
+                    const description = product.description || 'Описание отсутствует';
+                    
+                    row.innerHTML = `
+                        <td>${product.id}</td>
+                        <td>${escapeHtml(product.title)}</td>
+                        <td>${escapeHtml(authorName)}</td>
+                        <td class="description-cell" data-product-id="${product.id}">${escapeHtml(description)}</td>
+                        <td>${product.price} ₽</td>
+                        <td class="actions">
+                            <button class="generate-description-btn" data-product-id="${product.id}">AI-описание</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                document.getElementById('products-table').style.display = 'table';
+                showResult('products-result', `Загружено ${products.length} товаров`, 'success');
+                
+                // Добавляем обработчики событий
+                addEventListeners();
+                
+            } catch (error) {
+                showResult('products-result', `Ошибка: ${error.message}`, 'error');
+            }
+        }
+        
+        // Добавление обработчиков событий
+        function addEventListeners() {
+            const table = document.getElementById('products-table');
+            table.addEventListener('click', async function(e) {
+                if (e.target.classList.contains('generate-description-btn')) {
+                    const productId = e.target.getAttribute('data-product-id');
+                    await generateDescription(productId, e.target);
+                }
+            });
+        }
+        
+        // Генерация описания
+        async function generateDescription(productId, buttonElement) {
+            try {
+                // Показываем состояние загрузки
+                buttonElement.disabled = true;
+                buttonElement.textContent = 'Генерация...';
+                buttonElement.style.opacity = '0.6';
+                
+                showResult('generation-result', `Генерируем описание для товара ${productId}...`, 'loading');
+                
+                const response = await fetch(`${AI_RECOMMENDER_URL}/api/v1/recommendations/generate-description/${productId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: 'gemini-pro'
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+                }
+                
+                const result = await response.json();
+                
+                // Обновляем ячейку описания
+                const descriptionCell = document.querySelector(`.description-cell[data-product-id="${productId}"]`);
+                if (descriptionCell) {
+                    descriptionCell.innerHTML = escapeHtml(result.generated_description);
+                    descriptionCell.style.backgroundColor = '#d4edda';
+                    descriptionCell.style.transition = 'background-color 0.3s ease';
+                    
+                    setTimeout(() => {
+                        descriptionCell.style.backgroundColor = '';
+                    }, 2000);
+                }
+                
+                showResult('generation-result', 
+                    `✅ Описание для товара ${productId} успешно сгенерировано!<br>
+                     Модель: ${result.model_alias}<br>
+                     Длина описания: ${result.generated_description.length} символов`, 
+                    'success'
+                );
+                
+            } catch (error) {
+                showResult('generation-result', `❌ Ошибка: ${error.message}`, 'error');
+            } finally {
+                // Возвращаем кнопку в исходное состояние
+                buttonElement.disabled = false;
+                buttonElement.textContent = 'AI-описание';
+                buttonElement.style.opacity = '1';
+            }
+        }
+        
+        // Автоматическая проверка сервисов при загрузке
+        window.addEventListener('load', checkServices);
+    </script>
+</body>
+</html>

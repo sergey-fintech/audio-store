@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест каталога</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .cart-display {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border: 1px solid #dee2e6;
+        }
+        .book-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .add-to-cart-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .add-to-cart-btn:hover {
+            background: #218838;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Тест каталога</h1>
+        
+        <div class="cart-display">
+            <h3>Счетчик корзины: <span id="cart-count">0</span></h3>
+            <button class="test-button" onclick="clearCart()">Очистить корзину</button>
+            <button class="test-button" onclick="showCart()">Показать корзину</button>
+        </div>
+        
+        <div id="test-books">
+            <div class="book-card">
+                <h3>Тестовая книга 1</h3>
+                <p>Цена: 299 ₽</p>
+                <button class="add-to-cart-btn" data-book-id="1" data-book-title="Тестовая книга 1" data-book-price="299">
+                    В корзину
+                </button>
+            </div>
+            
+            <div class="book-card">
+                <h3>Тестовая книга 2</h3>
+                <p>Цена: 399 ₽</p>
+                <button class="add-to-cart-btn" data-book-id="2" data-book-title="Тестовая книга 2" data-book-price="399">
+                    В корзину
+                </button>
+            </div>
+        </div>
+        
+        <div class="cart-display">
+            <h3>Содержимое корзины:</h3>
+            <div id="cart-content">Корзина пуста</div>
+        </div>
+    </div>
+
+    <script>
+        // Функция для добавления товара в корзину
+        function addToCart(button) {
+            try {
+                const bookId = button.dataset.bookId;
+                const bookTitle = button.dataset.bookTitle;
+                const bookPrice = parseFloat(button.dataset.bookPrice);
+                
+                console.log('addToCart вызвана с параметрами:', { bookId, bookTitle, bookPrice });
+                
+                // Получаем текущую корзину из localStorage
+                let cart = JSON.parse(localStorage.getItem('cart')) || [];
+                console.log('Текущая корзина до добавления:', cart);
+                
+                // Проверяем, есть ли уже такой товар в корзине
+                const existingItem = cart.find(item => item.id === bookId);
+                
+                if (existingItem) {
+                    existingItem.quantity += 1;
+                    console.log('Увеличиваем количество для существующего товара');
+                } else {
+                    cart.push({
+                        id: bookId,
+                        title: bookTitle,
+                        price: bookPrice,
+                        quantity: 1
+                    });
+                    console.log('Добавляем новый товар в корзину');
+                }
+                
+                // Сохраняем обновленную корзину
+                localStorage.setItem('cart', JSON.stringify(cart));
+                console.log('Корзина сохранена в localStorage:', cart);
+                
+                // Обновляем счетчик корзины
+                updateCartCount();
+                
+                // Показываем уведомление
+                showCartNotification(bookTitle);
+                
+            } catch (error) {
+                console.error('Ошибка в addToCart:', error);
+                alert('Ошибка при добавлении товара в корзину: ' + error.message);
+            }
+        }
+        
+        // Функция для обновления счетчика корзины
+        function updateCartCount() {
+            try {
+                const cart = JSON.parse(localStorage.getItem('cart')) || [];
+                const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+                
+                console.log('Обновляем счетчик корзины. Товаров в корзине:', totalItems);
+                
+                const cartCountElement = document.getElementById('cart-count');
+                if (cartCountElement) {
+                    cartCountElement.textContent = totalItems;
+                    console.log('Счетчик корзины обновлен:', totalItems);
+                } else {
+                    console.warn('Элемент cart-count не найден');
+                }
+            } catch (error) {
+                console.error('Ошибка при обновлении счетчика корзины:', error);
+            }
+        }
+        
+        // Функция для очистки корзины
+        function clearCart() {
+            localStorage.removeItem('cart');
+            updateCartCount();
+            updateCartDisplay();
+            showCartNotification('Корзина очищена');
+        }
+        
+        // Функция для показа корзины
+        function showCart() {
+            updateCartDisplay();
+        }
+        
+        // Функция для обновления отображения корзины
+        function updateCartDisplay() {
+            try {
+                const cart = JSON.parse(localStorage.getItem('cart')) || [];
+                const cartContent = document.getElementById('cart-content');
+                
+                if (cart.length === 0) {
+                    cartContent.innerHTML = 'Корзина пуста';
+                } else {
+                    let html = '';
+                    cart.forEach(item => {
+                        html += `<div>${item.title} - ${item.price} ₽ (количество: ${item.quantity})</div>`;
+                    });
+                    cartContent.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Ошибка при обновлении отображения корзины:', error);
+            }
+        }
+        
+        // Функция для показа уведомлений
+        function showCartNotification(bookTitle) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = `Добавлено: ${bookTitle}`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 3000);
+        }
+        
+        // Обработчик для кнопок "В корзину" (делегирование событий)
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('add-to-cart-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const bookId = e.target.dataset.bookId;
+                const bookTitle = e.target.dataset.bookTitle;
+                const bookPrice = parseFloat(e.target.dataset.bookPrice);
+                
+                console.log('Добавление в корзину из каталога:', { bookId, bookTitle, bookPrice });
+                
+                // Вызываем функцию добавления в корзину
+                addToCart(e.target);
+            }
+        });
+        
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Тест каталога загружен');
+            updateCartCount();
+            updateCartDisplay();
+        });
+    </script>
+</body>
+</html>
+

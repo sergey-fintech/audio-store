@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест навигации</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .nav-menu { margin: 20px 0; }
+        .nav-menu a { margin-right: 20px; padding: 10px; background: #28a745; color: white; text-decoration: none; }
+        .nav-menu a:hover { background: #218838; }
+        .result { margin: 10px 0; padding: 10px; background: #f8f9fa; border-left: 4px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>Тест навигации корзины</h1>
+    
+    <div class="test-section">
+        <h3>Симуляция навигации корзины</h3>
+        <nav class="nav-menu">
+            <a href="index.html#catalog">Каталог</a>
+            <a href="cart.html">Корзина</a>
+        </nav>
+        
+        <div id="test-results"></div>
+        
+        <button onclick="testNavigation()">Тест кликов по навигации</button>
+        <button onclick="checkLocalStorage()">Проверить localStorage</button>
+        <button onclick="clearTestData()">Очистить тестовые данные</button>
+    </div>
+
+    <script>
+        function testNavigation() {
+            const results = document.getElementById('test-results');
+            results.innerHTML = '<h4>Результаты теста:</h4>';
+            
+            const catalogLink = document.querySelector('a[href="index.html#catalog"]');
+            const cartLink = document.querySelector('a[href="cart.html"]');
+            
+            if (catalogLink) {
+                results.innerHTML += '<div class="result">✅ Ссылка на каталог найдена: ' + catalogLink.href + '</div>';
+            } else {
+                results.innerHTML += '<div class="result">❌ Ссылка на каталог НЕ найдена</div>';
+            }
+            
+            if (cartLink) {
+                results.innerHTML += '<div class="result">✅ Ссылка на корзину найдена: ' + cartLink.href + '</div>';
+            } else {
+                results.innerHTML += '<div class="result">❌ Ссылка на корзину НЕ найдена</div>';
+            }
+            
+            // Тест клика по ссылке каталога
+            catalogLink.addEventListener('click', function(e) {
+                results.innerHTML += '<div class="result">🔄 Клик по ссылке каталога перехвачен</div>';
+                console.log('Клик по каталогу:', e);
+            });
+        }
+        
+        function checkLocalStorage() {
+            const results = document.getElementById('test-results');
+            const cart = localStorage.getItem('cart');
+            
+            results.innerHTML += '<h4>Состояние localStorage:</h4>';
+            results.innerHTML += '<div class="result">cart: ' + (cart || 'пустой') + '</div>';
+            
+            if (cart) {
+                try {
+                    const parsedCart = JSON.parse(cart);
+                    results.innerHTML += '<div class="result">Количество товаров: ' + parsedCart.length + '</div>';
+                } catch (e) {
+                    results.innerHTML += '<div class="result">❌ Ошибка парсинга корзины: ' + e.message + '</div>';
+                }
+            }
+        }
+        
+        function clearTestData() {
+            localStorage.removeItem('cart');
+            localStorage.removeItem('cartItems');
+            document.getElementById('test-results').innerHTML = '<div class="result">✅ Тестовые данные очищены</div>';
+        }
+        
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Тестовая страница загружена');
+            testNavigation();
+        });
+    </script>
+</body>
+</html>
+

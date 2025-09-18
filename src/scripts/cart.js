@@ -26,11 +26,17 @@ async function renderCart() {
     const cartContent = document.querySelector('.cart-content');
     const cartLoading = document.getElementById('cart-loading');
     
-    if (!cartItemsContainer) return;
+    if (!cartItemsContainer) {
+        console.error('Элемент cart-items не найден');
+        return;
+    }
     
     const cart = getCart();
+    console.log('renderCart: получена корзина:', cart);
+    console.log('renderCart: количество товаров:', cart.length);
     
     if (cart.length === 0) {
+        console.log('renderCart: корзина пуста, показываем сообщение');
         // Показываем сообщение о пустой корзине
         if (emptyCartElement) emptyCartElement.style.display = 'block';
         if (cartContent) cartContent.style.display = 'none';
@@ -323,6 +329,19 @@ function clearCart() {
         saveCart([]);
         renderCart();
         
+        // Обновляем счетчик корзины
+        updateCartCount();
+        
+        // Вызываем глобальное обновление
+        if (window.updateGlobalCartCount) {
+            window.updateGlobalCartCount();
+        }
+        
+        // Вызываем обновление из navigation.js
+        if (window.Navigation && window.Navigation.updateCartCount) {
+            window.Navigation.updateCartCount();
+        }
+        
         if (window.AudioStore && window.AudioStore.showNotification) {
             window.AudioStore.showNotification('Корзина очищена');
         }
@@ -421,20 +440,41 @@ async function checkout() {
 
 // Вспомогательные функции (используем из основного script.js)
 function getCart() {
-    if (window.AudioStore && window.AudioStore.getCart) {
-        return window.AudioStore.getCart();
+    // Всегда используем ключ 'cart' для единообразия
+    const cart = JSON.parse(localStorage.getItem('cart')) || [];
+    console.log('getCart из localStorage:', cart);
+    return cart;
+}
+
+// Функция для обновления счетчика корзины
+function updateCartCount() {
+    try {
+        const cart = getCart();
+        const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+        
+        const cartCountElement = document.getElementById('cart-count');
+        if (cartCountElement) {
+            cartCountElement.textContent = totalItems;
+            console.log('Счетчик корзины обновлен в cart.js:', totalItems);
+        } else {
+            console.warn('Элемент cart-count не найден в cart.js');
+        }
+    } catch (error) {
+        console.error('Ошибка при обновлении счетчика корзины в cart.js:', error);
     }
-    return JSON.parse(localStorage.getItem('cartItems')) || [];
 }
 
 function saveCart(cart) {
-    if (window.AudioStore && window.AudioStore.saveCart) {
-        window.AudioStore.saveCart(cart);
-    } else {
-        localStorage.setItem('cartItems', JSON.stringify(cart));
-    }
+    // Всегда используем ключ 'cart' для единообразия
+    localStorage.setItem('cart', JSON.stringify(cart));
+    
     // Обновляем глобальную переменную cartItems
     if (window.cartItems !== undefined) {
         window.cartItems = cart;
+    }
+    
+    // Также обновляем через AudioStore если доступен
+    if (window.AudioStore && window.AudioStore.saveCart) {
+        window.AudioStore.saveCart(cart);
     }
 }

@@ -1,0 +1,10 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Фон -->
+  <rect width="32" height="32" rx="6" fill="#0F1014"/>
+  
+  <!-- Буква A -->
+  <path d="M16 4L8 28H12L13.5 24H18.5L20 28H24L16 4ZM15 20L16.75 14L18.5 20H15Z" fill="#ff6b35"/>
+  
+  <!-- Декоративный элемент -->
+  <path d="M6 6L10 10L6 14L10 18L6 22" stroke="#f7931e" stroke-width="1.5" fill="none" opacity="0.6"/>
+</svg>

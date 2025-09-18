@@ -136,6 +136,29 @@ async def get_audiobooks(
     ]
 
 
+@app.get("/api/v1/search", response_model=List[dict])
+async def search_audiobooks(
+    q: str,
+    limit: Optional[int] = 100,
+    db: Session = Depends(get_db)
+):
+    """Поиск аудиокниг по названию, автору или описанию."""
+    repo = AudiobookRepository(db)
+    audiobooks = repo.search(q, limit=limit)
+    return [
+        {
+            "id": ab.id,
+            "title": ab.title,
+            "description": ab.description,
+            "price": float(ab.price),
+            "cover_image_url": ab.cover_image_url,
+            "author": {"id": ab.author.id, "name": ab.author.name} if ab.author else None,
+            "categories": [{"id": cat.id, "name": cat.name} for cat in ab.categories]
+        }
+        for ab in audiobooks
+    ]
+
+
 @app.get("/audiobooks/{audiobook_id}", response_model=dict)
 @app.get("/api/v1/audiobooks/{audiobook_id}", response_model=dict)
 async def get_audiobook(audiobook_id: int, db: Session = Depends(get_db)):
@@ -304,28 +327,6 @@ async def create_audiobook(
         "cover_image_url": audiobook.cover_image_url,
         "author_id": audiobook.author_id
     }
-
-
-@app.get("/audiobooks/search", response_model=List[dict])
-async def search_audiobooks(
-    query: str,
-    db: Session = Depends(get_db)
-):
-    """Поиск аудиокниг по названию или описанию."""
-    repo = AudiobookRepository(db)
-    audiobooks = repo.search(query)
-    return [
-        {
-            "id": ab.id,
-            "title": ab.title,
-            "description": ab.description,
-            "price": float(ab.price),
-            "cover_image_url": ab.cover_image_url,
-            "author": {"id": ab.author.id, "name": ab.author.name} if ab.author else None,
-            "categories": [{"id": cat.id, "name": cat.name} for cat in ab.categories]
-        }
-        for ab in audiobooks
-    ]
 
 
 @app.get("/audiobooks/author/{author_id}", response_model=List[dict])
