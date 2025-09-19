@@ -214,7 +214,7 @@ function logout() {
     
     // Перенаправляем на главную страницу
     setTimeout(() => {
-        window.location.href = 'index.html';
+        window.location.href = '/index.html';
     }, 1500);
 }
 

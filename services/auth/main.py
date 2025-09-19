@@ -12,10 +12,11 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from database.models import User, Base
-from database.database import get_db, engine
+from database.connection import get_db, get_engine
 from security import get_password_hash, verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 
 # Создаем таблицы в базе данных
+engine = get_engine()
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
