@@ -20,9 +20,10 @@ class ServiceManager:
         self.services = {
             "auth": {"port": 8001, "dir": "services/auth", "script": "run_app.py"},
             "catalog": {"port": 8002, "dir": "services/catalog", "script": "run_app.py"},
-            "cart": {"port": 8004, "dir": "services/cart", "script": "run_app.py"},
             "orders": {"port": 8003, "dir": "services/orders", "script": "run_app.py"},
+            "cart": {"port": 8004, "dir": "services/cart", "script": "run_app.py"},
             "recommender": {"port": 8005, "dir": "services/recommender", "script": "run_app.py"},
+            "prompts-manager": {"port": 8006, "dir": "services/prompts-manager", "script": "run_app.py"},
             "web": {"port": 8000, "dir": "src", "script": "-m http.server 8000"}
         }
         
@@ -53,9 +54,9 @@ class ServiceManager:
         return True
     
     def kill_processes_on_ports(self):
-        """Остановка процессов на портах 8000-8005"""
-        print("🛑 Остановка процессов на портах 8000-8005...")
-        ports = [8000, 8001, 8002, 8003, 8004, 8005]
+        """Остановка процессов на портах 8000-8006"""
+        print("🛑 Остановка процессов на портах 8000-8006...")
+        ports = [8000, 8001, 8002, 8003, 8004, 8005, 8006]
         
         for port in ports:
             try:
@@ -246,9 +247,10 @@ class ServiceManager:
             print("   ⚙️  Админ-панель: http://localhost:8000/admin/admin.html")
             print("   🔐 API аутентификации: http://localhost:8001/docs")
             print("   📚 API каталога: http://localhost:8002/docs")
-            print("   🛒 API корзины: http://localhost:8004/docs")
             print("   📦 API заказов: http://localhost:8003/docs")
+            print("   🛒 API корзины: http://localhost:8004/docs")
             print("   🤖 API рекомендаций: http://localhost:8005/docs")
+            print("   📝 API промптов: http://localhost:8006/docs")
             print("\n💡 Для остановки нажмите Ctrl+C")
             print("=" * 50)
             

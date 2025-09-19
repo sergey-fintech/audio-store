@@ -42,6 +42,7 @@ client = openai.OpenAI(
 
 # Конфигурация
 CATALOG_SERVICE_URL = "http://localhost:8002"  # URL микросервиса catalog
+PROMPTS_SERVICE_URL = "http://localhost:8006"  # URL микросервиса prompts-manager
 
 # Доступные модели LLM
 AVAILABLE_MODELS = {
@@ -75,6 +76,55 @@ class DescriptionGenerationResponse(BaseModel):
 
 
 # Вспомогательные функции
+async def fetch_prompt_from_service(prompt_name: str) -> str:
+    """
+    Получает промпт из микросервиса prompts-manager.
+    Это взаимодействие между ограниченными контекстами (Anti-Corruption Layer).
+    """
+    try:
+        url = f"{PROMPTS_SERVICE_URL}/prompts/name/{prompt_name}"
+        print(f"🔍 Запрос к Prompts Service: {url}")
+        
+        def make_request():
+            return requests.get(url, timeout=10.0)
+        
+        response = await asyncio.to_thread(make_request)
+        print(f"📡 Ответ от Prompts Service: статус {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            prompt_content = data.get('content', '')
+            print(f"✅ Получен промпт '{prompt_name}' длиной {len(prompt_content)} символов")
+            return prompt_content
+        elif response.status_code == 404:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Промпт '{prompt_name}' не найден в prompts-manager"
+            )
+        else:
+            print(f"❌ Ошибка {response.status_code}: {response.text[:100]}")
+            raise HTTPException(
+                status_code=503,
+                detail=f"Prompts сервис вернул ошибку {response.status_code}: {response.text}"
+            )
+        
+    except requests.exceptions.Timeout:
+        raise HTTPException(
+            status_code=503,
+            detail="Prompts сервис не отвечает в течение 10 секунд"
+        )
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Ошибка подключения к prompts сервису: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Неожиданная ошибка при получении промпта: {str(e)}"
+        )
+
+
 async def fetch_audiobooks_from_catalog() -> list:  
     """
     Получает список аудиокниг из микросервиса catalog.
@@ -128,11 +178,14 @@ async def fetch_audiobooks_from_catalog() -> list:
         )
 
 
-def create_system_prompt(audiobooks: list, user_prompt: str) -> str:
+async def create_system_prompt(audiobooks: list, user_prompt: str) -> str:
     """
-    Создает системный промпт для LLM.
+    Создает системный промпт для LLM, используя промпт из prompts-manager.
     Это наша интеллектуальная собственность - Core Domain логика.
     """
+    # Получаем базовый промпт из prompts-manager
+    base_prompt = await fetch_prompt_from_service("recommendation_prompt")
+    
     # Формируем JSON с каталогом книг
     books_json = []
     for book in audiobooks:
@@ -146,27 +199,11 @@ def create_system_prompt(audiobooks: list, user_prompt: str) -> str:
         }
         books_json.append(book_data)
     
-    system_prompt = f"""
-Ты - эксперт по аудиокнигам и персонализированным рекомендациям.
-
-ДОСТУПНЫЙ КАТАЛОГ АУДИОКНИГ (в формате JSON):
-{books_json}
-
-ЗАДАЧА ПОЛЬЗОВАТЕЛЯ:
-{user_prompt}
-
-ИНСТРУКЦИИ:
-1. Проанализируй запрос пользователя
-2. Выбери наиболее подходящие аудиокниги из каталога
-3. Предоставь персонализированные рекомендации
-4. Объясни логику выбора
-5. Отвечай на русском языке
-
-ФОРМАТ ОТВЕТА:
-- Список рекомендованных книг с обоснованием
-- Объяснение логики рекомендаций
-- Количество проанализированных книг
-"""
+    # Форматируем промпт с данными
+    system_prompt = base_prompt.format(
+        user_preferences=user_prompt,
+        available_books=books_json
+    )
     
     return system_prompt
 
@@ -219,42 +256,26 @@ async def fetch_audiobook_by_id(product_id: int) -> dict:
         )
 
 
-def create_description_prompt(audiobook: dict) -> str:
+async def create_description_prompt(audiobook: dict) -> str:
     """
-    Создает промпт для генерации описания аудиокниги.
+    Создает промпт для генерации описания аудиокниги, используя промпт из prompts-manager.
     Это наша интеллектуальная собственность - Core Domain логика.
     """
+    # Получаем базовый промпт из prompts-manager
+    base_prompt = await fetch_prompt_from_service("description_prompt")
+    
     title = audiobook.get('title', 'Без названия')
     author_name = audiobook.get('author', {}).get('name', 'Неизвестен') if audiobook.get('author') else 'Неизвестен'
     categories = [cat.get('name', '') for cat in audiobook.get('categories', [])]
-    price = audiobook.get('price', 0)
     current_description = audiobook.get('description', '')
     
-    system_prompt = f"""
-Ты - эксперт по аудиокнигам и созданию привлекательных описаний.
-
-ДАННЫЕ О КНИГЕ:
-- Название: {title}
-- Автор: {author_name}
-- Категории: {', '.join(categories) if categories else 'Не указаны'}
-- Цена: {price} руб.
-- Текущее описание: {current_description if current_description else 'Отсутствует'}
-
-ЗАДАЧА:
-Создай привлекательное и информативное описание для этой аудиокниги.
-
-ТРЕБОВАНИЯ:
-1. Описание должно быть на русском языке
-2. Длина: 150-300 слов
-3. Включи информацию о жанре, стиле, целевой аудитории
-4. Подчеркни уникальные особенности книги
-5. Сделай описание привлекательным для потенциальных покупателей
-6. Если текущее описание есть, используй его как основу, но улучши и расширь
-7. Не выдумывай факты, которых нет в данных
-
-ФОРМАТ ОТВЕТА:
-Верни только готовое описание без дополнительных комментариев.
-"""
+    # Форматируем промпт с данными
+    system_prompt = base_prompt.format(
+        title=title,
+        author=author_name,
+        genre=', '.join(categories) if categories else 'Не указан',
+        theme=current_description if current_description else 'Не указана'
+    )
     
     return system_prompt
 
@@ -368,7 +389,7 @@ async def generate_recommendations(request: RecommendationRequest):
         )
     
     # 2. Создаем системный промпт (наша Core Domain логика)
-    system_prompt = create_system_prompt(audiobooks, request.prompt)
+    system_prompt = await create_system_prompt(audiobooks, request.prompt)
     
     # 3. Вызываем LLM через OpenRouter
     try:
@@ -424,7 +445,7 @@ async def generate_description(product_id: int, request: DescriptionGenerationRe
         
         # Шаг 2: Создаем промпт для LLM
         print(f"🤖 Шаг 2: Создание промпта для LLM")
-        system_prompt = create_description_prompt(audiobook)
+        system_prompt = await create_description_prompt(audiobook)
         
         # Шаг 3: Вызываем LLM для генерации описания
         print(f"⚡ Шаг 3: Генерация описания с помощью LLM")

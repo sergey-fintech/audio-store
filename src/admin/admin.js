@@ -60,6 +60,7 @@ function logoutAdmin() {
 // Конфигурация API
 const API_BASE_URL = 'http://localhost:8002'; // Порт каталога товаров
 const AI_RECOMMENDER_URL = 'http://localhost:8005'; // Порт AI-рекомендатора
+const PROMPTS_MANAGER_URL = 'http://localhost:8006'; // Порт менеджера промптов
 
 // Элементы DOM
 const productForm = document.getElementById('product-form');
@@ -74,6 +75,9 @@ const aiPrompt = document.getElementById('ai-prompt');
 const aiModel = document.getElementById('ai-model');
 const aiResult = document.getElementById('ai-result');
 const aiResultContent = document.querySelector('.ai-result-content');
+
+// Prompts Manager элементы
+const promptsList = document.getElementById('prompts-list');
 
 // Состояние приложения
 let isEditing = false;
@@ -455,6 +459,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Загружаем данные и инициализируем форму
     fetchAndRenderProducts();
     initFormValidation();
+    
+    // Загружаем промпты
+    fetchAndRenderPrompts();
 });
 
 // Функция для инициализации валидации формы
@@ -693,5 +700,178 @@ function updateDescriptionCell(productId, newDescription) {
         console.log(`Ячейка описания для товара ${productId} обновлена`);
     } else {
         console.warn(`Ячейка описания для товара ${productId} не найдена`);
+    }
+}
+
+// ===== PROMPTS MANAGER FUNCTIONALITY =====
+
+// Функция для получения и отображения промптов
+async function fetchAndRenderPrompts() {
+    try {
+        // Показываем индикатор загрузки
+        promptsList.innerHTML = '<div class="loading">Загрузка промптов...</div>';
+        
+        const response = await fetch(`${PROMPTS_MANAGER_URL}/prompts`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const prompts = await response.json();
+        
+        // Очищаем контейнер
+        promptsList.innerHTML = '';
+        
+        if (prompts.length === 0) {
+            promptsList.innerHTML = '<div class="no-data">Промпты не найдены</div>';
+            return;
+        }
+        
+        // Создаем карточки для каждого промпта
+        prompts.forEach(prompt => {
+            const promptCard = createPromptCard(prompt);
+            promptsList.appendChild(promptCard);
+        });
+        
+    } catch (error) {
+        console.error('Ошибка при загрузке промптов:', error);
+        promptsList.innerHTML = `<div class="error">Ошибка при загрузке промптов: ${error.message}</div>`;
+    }
+}
+
+// Функция для создания карточки промпта
+function createPromptCard(prompt) {
+    const card = document.createElement('div');
+    card.className = 'prompt-card';
+    card.innerHTML = `
+        <div class="prompt-header">
+            <h3>${escapeHtml(prompt.name)}</h3>
+            <div class="prompt-status">
+                <span class="status-badge ${prompt.is_active === 'true' ? 'active' : 'inactive'}">
+                    ${prompt.is_active === 'true' ? 'Активен' : 'Неактивен'}
+                </span>
+            </div>
+        </div>
+        <div class="prompt-description">
+            <p>${escapeHtml(prompt.description || 'Описание отсутствует')}</p>
+        </div>
+        <div class="prompt-content">
+            <label for="prompt-content-${prompt.id}">Содержимое промпта:</label>
+            <textarea 
+                id="prompt-content-${prompt.id}" 
+                class="prompt-textarea" 
+                rows="8"
+                placeholder="Введите содержимое промпта..."
+            >${escapeHtml(prompt.content)}</textarea>
+        </div>
+        <div class="prompt-actions">
+            <button class="save-prompt-btn" data-prompt-id="${prompt.id}">
+                Сохранить
+            </button>
+            <button class="toggle-status-btn" data-prompt-id="${prompt.id}" data-current-status="${prompt.is_active}">
+                ${prompt.is_active === 'true' ? 'Деактивировать' : 'Активировать'}
+            </button>
+        </div>
+        <div class="prompt-meta">
+            <small>ID: ${prompt.id} | Создан: ${new Date(prompt.created_at).toLocaleString('ru-RU')}</small>
+        </div>
+    `;
+    
+    // Добавляем обработчики событий
+    const saveBtn = card.querySelector('.save-prompt-btn');
+    const toggleBtn = card.querySelector('.toggle-status-btn');
+    
+    saveBtn.addEventListener('click', () => savePrompt(prompt.id, card));
+    toggleBtn.addEventListener('click', () => togglePromptStatus(prompt.id, card));
+    
+    return card;
+}
+
+// Функция для сохранения промпта
+async function savePrompt(promptId, cardElement) {
+    const textarea = cardElement.querySelector('.prompt-textarea');
+    const saveBtn = cardElement.querySelector('.save-prompt-btn');
+    const newContent = textarea.value.trim();
+    
+    if (!newContent) {
+        showMessage('Содержимое промпта не может быть пустым', 'error');
+        return;
+    }
+    
+    try {
+        // Показываем состояние загрузки
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Сохранение...';
+        
+        const response = await fetch(`${PROMPTS_MANAGER_URL}/prompts/${promptId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                content: newContent
+            })
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        }
+        
+        const updatedPrompt = await response.json();
+        showMessage(`Промпт "${updatedPrompt.name}" успешно сохранен!`, 'success');
+        
+        // Обновляем метаданные в карточке
+        const metaElement = cardElement.querySelector('.prompt-meta');
+        metaElement.innerHTML = `<small>ID: ${updatedPrompt.id} | Обновлен: ${new Date().toLocaleString('ru-RU')}</small>`;
+        
+    } catch (error) {
+        console.error('Ошибка при сохранении промпта:', error);
+        showMessage(`Ошибка при сохранении промпта: ${error.message}`, 'error');
+    } finally {
+        // Убираем состояние загрузки
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Сохранить';
+    }
+}
+
+// Функция для переключения статуса промпта
+async function togglePromptStatus(promptId, cardElement) {
+    const toggleBtn = cardElement.querySelector('.toggle-status-btn');
+    const currentStatus = toggleBtn.getAttribute('data-current-status');
+    const newStatus = currentStatus === 'true' ? 'false' : 'true';
+    
+    try {
+        // Показываем состояние загрузки
+        toggleBtn.disabled = true;
+        toggleBtn.textContent = 'Обновление...';
+        
+        const endpoint = newStatus === 'true' ? 'activate' : 'deactivate';
+        const response = await fetch(`${PROMPTS_MANAGER_URL}/prompts/${promptId}/${endpoint}`, {
+            method: 'PUT'
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        }
+        
+        const result = await response.json();
+        showMessage(result.message, 'success');
+        
+        // Обновляем UI
+        const statusBadge = cardElement.querySelector('.status-badge');
+        statusBadge.className = `status-badge ${newStatus === 'true' ? 'active' : 'inactive'}`;
+        statusBadge.textContent = newStatus === 'true' ? 'Активен' : 'Неактивен';
+        
+        toggleBtn.setAttribute('data-current-status', newStatus);
+        toggleBtn.textContent = newStatus === 'true' ? 'Деактивировать' : 'Активировать';
+        
+    } catch (error) {
+        console.error('Ошибка при изменении статуса промпта:', error);
+        showMessage(`Ошибка при изменении статуса: ${error.message}`, 'error');
+    } finally {
+        // Убираем состояние загрузки
+        toggleBtn.disabled = false;
     }
 }

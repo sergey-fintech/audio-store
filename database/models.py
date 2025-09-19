@@ -310,3 +310,51 @@ class OrderItem(Base):
     
     def __str__(self):
         return f"{self.title} x {self.quantity} = {self.total_price}"
+
+
+class Prompt(Base):
+    """
+    Сущность Prompt (Промпт) - представляет промпт для AI-сервисов.
+    
+    В контексте DDD это является сущностью, которая может существовать независимо
+    и имеет свой собственный жизненный цикл.
+    """
+    __tablename__ = 'prompts'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False, unique=True, index=True)
+    content = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    is_active = Column(String(10), nullable=False, default='true')
+    
+    # Метаданные
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    def __repr__(self):
+        return f"<Prompt(id={self.id}, name='{self.name}', is_active='{self.is_active}')>"
+    
+    def __str__(self):
+        return f"{self.name}: {self.description or 'No description'}"
+    
+    def activate(self) -> None:
+        """
+        Активирует промпт.
+        """
+        self.is_active = 'true'
+    
+    def deactivate(self) -> None:
+        """
+        Деактивирует промпт.
+        """
+        self.is_active = 'false'
+    
+    @property
+    def is_prompt_active(self) -> bool:
+        """
+        Возвращает True, если промпт активен.
+        
+        Returns:
+            True, если промпт активен
+        """
+        return self.is_active == 'true'
