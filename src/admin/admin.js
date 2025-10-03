@@ -105,6 +105,101 @@ function showMessage(message, type = 'success') {
     }, 5000);
 }
 
+// Функция для отображения детальных ошибок
+function showDetailedError(title, message, error) {
+    // Удаляем существующие уведомления
+    const existingMessages = document.querySelectorAll('.message, .error-details');
+    existingMessages.forEach(msg => msg.remove());
+    
+    // Создаем контейнер для детальной ошибки
+    const errorContainer = document.createElement('div');
+    errorContainer.className = 'error-details';
+    errorContainer.style.cssText = `
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+        color: #721c24;
+        max-width: 800px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    `;
+    
+    errorContainer.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; color: #721c24; font-size: 18px;">❌ ${escapeHtml(title)}</h3>
+            <button onclick="this.parentElement.parentElement.remove()" style="
+                background: none; 
+                border: none; 
+                font-size: 20px; 
+                cursor: pointer; 
+                color: #721c24;
+                padding: 0;
+                width: 24px;
+                height: 24px;
+            ">×</button>
+        </div>
+        <div style="margin-bottom: 15px;">
+            <strong>Сообщение об ошибке:</strong>
+            <div style="
+                background: white; 
+                border: 1px solid #ddd; 
+                border-radius: 4px; 
+                padding: 10px; 
+                margin-top: 5px; 
+                font-family: monospace; 
+                white-space: pre-wrap;
+                max-height: 200px;
+                overflow-y: auto;
+            ">${escapeHtml(message)}</div>
+        </div>
+        <div style="margin-bottom: 15px;">
+            <strong>Время ошибки:</strong> ${new Date().toLocaleString('ru-RU')}
+        </div>
+        <div style="margin-bottom: 15px;">
+            <strong>Возможные решения:</strong>
+            <ul style="margin: 5px 0 0 20px;">
+                <li>Проверьте подключение к интернету</li>
+                <li>Убедитесь, что все микросервисы запущены</li>
+                <li>Проверьте настройки API-ключа для AI-сервиса</li>
+                <li>Попробуйте повторить операцию через несколько секунд</li>
+            </ul>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="this.closest('.error-details').remove()" style="
+                background: #6c757d; 
+                color: white; 
+                border: none; 
+                padding: 8px 16px; 
+                border-radius: 4px; 
+                cursor: pointer;
+            ">Закрыть</button>
+            <button onclick="location.reload()" style="
+                background: #007bff; 
+                color: white; 
+                border: none; 
+                padding: 8px 16px; 
+                border-radius: 4px; 
+                cursor: pointer;
+            ">Обновить страницу</button>
+        </div>
+    `;
+    
+    // Вставляем уведомление после заголовка
+    const h1 = document.querySelector('h1');
+    h1.parentNode.insertBefore(errorContainer, h1.nextSibling);
+    
+    // Прокручиваем к ошибке
+    errorContainer.scrollIntoView({ behavior: 'smooth' });
+    
+    // Автоматически удаляем через 30 секунд (больше времени для чтения)
+    setTimeout(() => {
+        if (errorContainer.parentNode) {
+            errorContainer.remove();
+        }
+    }, 30000);
+}
+
 // Функция для получения и отображения товаров
 async function fetchAndRenderProducts() {
     try {
@@ -551,7 +646,39 @@ async function generateAIRecommendations() {
         
     } catch (error) {
         console.error('Ошибка при генерации AI-рекомендаций:', error);
-        showMessage(`Ошибка при генерации рекомендаций: ${error.message}`, 'error');
+        
+        // Пытаемся извлечь детальную информацию об ошибке из ответа
+        let errorMessage = error.message;
+        let errorDetails = '';
+        
+        try {
+            // Если ошибка содержит JSON с деталями, пытаемся его распарсить
+            if (error.message.includes('HTTP error! status:')) {
+                const parts = error.message.split(' - ');
+                if (parts.length > 1) {
+                    const errorText = parts[1];
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        if (errorJson.detail) {
+                            errorMessage = errorJson.detail;
+                            errorDetails = `Статус: ${parts[0].replace('HTTP error! status: ', '')}`;
+                        }
+                    } catch (parseError) {
+                        // Если не удалось распарсить JSON, используем текст как есть
+                        errorMessage = errorText;
+                    }
+                }
+            }
+        } catch (parseError) {
+            console.warn('Не удалось распарсить детали ошибки:', parseError);
+        }
+        
+        // Показываем детальное сообщение об ошибке
+        const fullErrorMessage = errorDetails ? 
+            `${errorMessage}\n\nДетали: ${errorDetails}` : 
+            errorMessage;
+            
+        showDetailedError('Ошибка при генерации AI-рекомендаций', fullErrorMessage, error);
         hideAIResult();
     } finally {
         setGenerateButtonLoading(false);
@@ -640,7 +767,7 @@ async function generateDescriptionForProduct(productId, buttonElement) {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                model: 'gemini-pro' // Используем модель по умолчанию
+                model: 'gemini-pro' // Использует google/gemini-2.0-flash-001
             })
         });
         
@@ -659,7 +786,39 @@ async function generateDescriptionForProduct(productId, buttonElement) {
         
     } catch (error) {
         console.error('Ошибка при генерации описания:', error);
-        showMessage(`Ошибка при генерации описания: ${error.message}`, 'error');
+        
+        // Пытаемся извлечь детальную информацию об ошибке из ответа
+        let errorMessage = error.message;
+        let errorDetails = '';
+        
+        try {
+            // Если ошибка содержит JSON с деталями, пытаемся его распарсить
+            if (error.message.includes('HTTP error! status:')) {
+                const parts = error.message.split(' - ');
+                if (parts.length > 1) {
+                    const errorText = parts[1];
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        if (errorJson.detail) {
+                            errorMessage = errorJson.detail;
+                            errorDetails = `Статус: ${parts[0].replace('HTTP error! status: ', '')}`;
+                        }
+                    } catch (parseError) {
+                        // Если не удалось распарсить JSON, используем текст как есть
+                        errorMessage = errorText;
+                    }
+                }
+            }
+        } catch (parseError) {
+            console.warn('Не удалось распарсить детали ошибки:', parseError);
+        }
+        
+        // Показываем детальное сообщение об ошибке
+        const fullErrorMessage = errorDetails ? 
+            `${errorMessage}\n\nДетали: ${errorDetails}` : 
+            errorMessage;
+            
+        showDetailedError('Ошибка при генерации описания', fullErrorMessage, error);
     } finally {
         // Убираем состояние загрузки с кнопки
         setDescriptionButtonLoading(buttonElement, false);

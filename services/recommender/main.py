@@ -14,9 +14,18 @@ import requests
 import asyncio
 import openai
 from dotenv import load_dotenv
+import json
+
+# Загружаем переменные окружения из корня проекта
+import os
+from pathlib import Path
+
+# Определяем путь к корню проекта (на 2 уровня выше)
+project_root = Path(__file__).parent.parent.parent
+env_path = project_root / '.env'
 
 # Загружаем переменные окружения
-load_dotenv()
+load_dotenv(env_path)
 
 # Инициализация FastAPI приложения
 app = FastAPI(
@@ -38,6 +47,10 @@ app.add_middleware(
 client = openai.OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=os.getenv("OPENROUTER_API_KEY"),
+    default_headers={
+        "HTTP-Referer": "http://localhost:8000/admin/admin.html",
+        "X-Title": "Audio Store",
+    },
 )
 
 # Конфигурация
@@ -46,8 +59,8 @@ PROMPTS_SERVICE_URL = "http://localhost:8006"  # URL микросервиса pr
 
 # Доступные модели LLM
 AVAILABLE_MODELS = {
-    "gemini-pro": "google/gemini-pro-1.5",
-    "gemini-flash": "google/gemini-flash-1.5-8b", 
+    "gemini-pro": "google/gemini-2.0-flash-001",
+    "gemini-flash": "google/gemini-2.0-flash-001",
     "claude-3": "anthropic/claude-3.5-sonnet",
     "gpt-4": "openai/gpt-4-turbo",
     "llama-3": "meta-llama/llama-3-8b-instruct"
@@ -186,23 +199,15 @@ async def create_system_prompt(audiobooks: list, user_prompt: str) -> str:
     # Получаем базовый промпт из prompts-manager
     base_prompt = await fetch_prompt_from_service("recommendation_prompt")
     
-    # Формируем JSON с каталогом книг
-    books_json = []
-    for book in audiobooks:
-        book_data = {
-            "id": book['id'],
-            "title": book['title'],
-            "author": book['author']['name'] if book['author'] else 'Неизвестен',
-            "description": book['description'] or 'Описание отсутствует',
-            "price": book['price'],
-            "categories": [cat['name'] for cat in book['categories']] if book['categories'] else []
-        }
-        books_json.append(book_data)
+    # Упрощаем список книг до простого текста (название и автор)
+    books_list_text = "\n".join(
+        [f"- {book['title']} (Автор: {book['author']['name'] if book.get('author') else 'Неизвестен'})" for book in audiobooks]
+    )
     
-    # Форматируем промпт с данными
+    # Форматируем промпт с упрощенными данными
     system_prompt = base_prompt.format(
         user_preferences=user_prompt,
-        available_books=books_json
+        available_books=books_list_text
     )
     
     return system_prompt
@@ -403,9 +408,22 @@ async def generate_recommendations(request: RecommendationRequest):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": request.prompt}
             ],
-            max_tokens=1500,
-            temperature=0.7
+            max_tokens=1000,
+            temperature=0.5
         )
+        
+        # Проверяем, что ответ содержит валидные данные
+        if not response or not response.choices or len(response.choices) == 0:
+            raise HTTPException(
+                status_code=502,
+                detail="LLM сервис вернул пустой ответ"
+            )
+        
+        if not response.choices[0].message or not response.choices[0].message.content:
+            raise HTTPException(
+                status_code=502,
+                detail="LLM сервис вернул ответ без содержимого"
+            )
         
         # 4. Возвращаем ответ от модели "как есть"
         return {
@@ -415,10 +433,59 @@ async def generate_recommendations(request: RecommendationRequest):
             "total_books_analyzed": len(audiobooks)
         }
         
+    except openai.AuthenticationError as e:
+        print(f"❌ Ошибка аутентификации с OpenRouter API: {str(e)}")
+        raise HTTPException(
+            status_code=401,
+            detail="Ошибка аутентификации с LLM сервисом. Проверьте API-ключ."
+        )
+    except openai.PermissionDeniedError as e:
+        print(f"❌ Ошибка доступа к OpenRouter API: {str(e)}")
+        raise HTTPException(
+            status_code=403,
+            detail="Доступ к LLM сервису запрещен. Проверьте права доступа."
+        )
+    except openai.NotFoundError as e:
+        print(f"❌ Модель не найдена в OpenRouter API: {str(e)}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Модель '{model_name}' не найдена в LLM сервисе"
+        )
+    except openai.RateLimitError as e:
+        print(f"❌ Превышен лимит запросов к OpenRouter API: {str(e)}")
+        raise HTTPException(
+            status_code=429,
+            detail="Превышен лимит запросов к LLM сервису. Попробуйте позже."
+        )
+    except openai.APITimeoutError as e:
+        print(f"❌ Таймаут запроса к OpenRouter API: {str(e)}")
+        raise HTTPException(
+            status_code=504,
+            detail="LLM сервис не отвечает в течение допустимого времени"
+        )
+    except openai.InternalServerError as e:
+        print(f"❌ Внутренняя ошибка OpenRouter API: {str(e)}")
+        raise HTTPException(
+            status_code=502,
+            detail="Внутренняя ошибка LLM сервиса. Попробуйте позже."
+        )
+    except openai.BadRequestError as e:
+        print(f"❌ Неверный запрос к OpenRouter API: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Неверный запрос к LLM сервису: {str(e)}"
+        )
+    except openai.APIError as e:
+        print(f"❌ Общая ошибка OpenRouter API: {str(e)}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ошибка LLM сервиса: {str(e)}"
+        )
     except Exception as e:
+        print(f"❌ Неожиданная ошибка при обращении к LLM: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Ошибка при обращении к LLM: {str(e)}"
+            detail=f"Неожиданная ошибка при обращении к LLM сервису: {str(e)}"
         )
 
 
@@ -452,18 +519,87 @@ async def generate_description(product_id: int, request: DescriptionGenerationRe
         model_name = AVAILABLE_MODELS.get(request.model, AVAILABLE_MODELS["gemini-pro"])
         print(f"🤖 Используем модель: {request.model} -> {model_name}")
         
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": "Создай привлекательное описание для этой аудиокниги."}
-            ],
-            max_tokens=500,
-            temperature=0.7
-        )
-        
-        generated_description = response.choices[0].message.content.strip()
-        print(f"✅ Сгенерировано описание длиной {len(generated_description)} символов")
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": "Создай привлекательное описание для этой аудиокниги."}
+                ],
+                max_tokens=300,
+                temperature=0.5
+            )
+            
+            # Проверяем, что ответ содержит валидные данные
+            if not response or not response.choices or len(response.choices) == 0:
+                raise HTTPException(
+                    status_code=502,
+                    detail="LLM сервис вернул пустой ответ"
+                )
+            
+            if not response.choices[0].message or not response.choices[0].message.content:
+                raise HTTPException(
+                    status_code=502,
+                    detail="LLM сервис вернул ответ без содержимого"
+                )
+            
+            generated_description = response.choices[0].message.content.strip()
+            print(f"✅ Сгенерировано описание длиной {len(generated_description)} символов")
+            
+        except openai.AuthenticationError as e:
+            print(f"❌ Ошибка аутентификации с OpenRouter API: {str(e)}")
+            raise HTTPException(
+                status_code=401,
+                detail="Ошибка аутентификации с LLM сервисом. Проверьте API-ключ."
+            )
+        except openai.PermissionDeniedError as e:
+            print(f"❌ Ошибка доступа к OpenRouter API: {str(e)}")
+            raise HTTPException(
+                status_code=403,
+                detail="Доступ к LLM сервису запрещен. Проверьте права доступа."
+            )
+        except openai.NotFoundError as e:
+            print(f"❌ Модель не найдена в OpenRouter API: {str(e)}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Модель '{model_name}' не найдена в LLM сервисе"
+            )
+        except openai.RateLimitError as e:
+            print(f"❌ Превышен лимит запросов к OpenRouter API: {str(e)}")
+            raise HTTPException(
+                status_code=429,
+                detail="Превышен лимит запросов к LLM сервису. Попробуйте позже."
+            )
+        except openai.APITimeoutError as e:
+            print(f"❌ Таймаут запроса к OpenRouter API: {str(e)}")
+            raise HTTPException(
+                status_code=504,
+                detail="LLM сервис не отвечает в течение допустимого времени"
+            )
+        except openai.InternalServerError as e:
+            print(f"❌ Внутренняя ошибка OpenRouter API: {str(e)}")
+            raise HTTPException(
+                status_code=502,
+                detail="Внутренняя ошибка LLM сервиса. Попробуйте позже."
+            )
+        except openai.BadRequestError as e:
+            print(f"❌ Неверный запрос к OpenRouter API: {str(e)}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Неверный запрос к LLM сервису: {str(e)}"
+            )
+        except openai.APIError as e:
+            print(f"❌ Общая ошибка OpenRouter API: {str(e)}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Ошибка LLM сервиса: {str(e)}"
+            )
+        except Exception as e:
+            print(f"❌ Неожиданная ошибка при обращении к LLM: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Неожиданная ошибка при обращении к LLM сервису: {str(e)}"
+            )
         
         # Шаг 4: Обновляем описание в catalog сервисе
         print(f"🔄 Шаг 4: Обновление описания в catalog сервисе")

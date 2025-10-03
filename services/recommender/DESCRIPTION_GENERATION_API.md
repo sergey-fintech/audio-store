@@ -29,18 +29,17 @@
 ```
 
 **Доступные модели:**
-- `gemini-pro` - Google Gemini Pro 1.5
-- `gemini-flash` - Google Gemini Flash 1.5 8B
+- `gemini-pro` - Gemini 2.0 Flash
+- `gemini-flash` - Gemini 2.0 Flash
 - `claude-3` - Anthropic Claude 3.5 Sonnet
 - `gpt-4` - OpenAI GPT-4 Turbo
-- `llama-3` - Meta Llama 3 8B Instruct
 
 **Ответ:**
 ```json
 {
   "product_id": 1,
   "generated_description": "Привлекательное описание аудиокниги...",
-  "model": "google/gemini-pro-1.5",
+  "model": "google/gemini-2.0-flash-001",
   "model_alias": "gemini-pro",
   "success": true
 }

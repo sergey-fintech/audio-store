@@ -359,7 +359,8 @@ async function checkout() {
     
     // Проверяем аутентификацию
     const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) {
+    const adminToken = localStorage.getItem('admin_token');
+    if (!accessToken && !adminToken) {
         alert('Для оформления заказа необходимо войти в систему');
         window.location.href = 'login.html';
         return;
@@ -390,11 +391,13 @@ async function checkout() {
             throw new Error('Нет валидных товаров для заказа');
         }
         
+        const tokenForRequest = accessToken || adminToken;
+
         const response = await fetch('http://localhost:8003/api/v1/orders', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`
+                'Authorization': `Bearer ${tokenForRequest}`
             },
             body: JSON.stringify({
                 items: items

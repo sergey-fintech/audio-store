@@ -94,7 +94,7 @@ POST /api/v1/recommendations/generate-description/{productId}
 {
   "product_id": 1,
   "generated_description": "Привлекательное описание аудиокниги...",
-  "model": "google/gemini-pro-1.5",
+  "model": "google/gemini-2.0-flash-001",
   "model_alias": "gemini-pro",
   "success": true
 }
