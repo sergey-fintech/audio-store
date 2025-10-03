@@ -4,7 +4,7 @@
  */
 
 // Конфигурация API
-const API_BASE_URL = 'http://localhost:8002';
+// const API_BASE_URL = 'http://localhost:8002'; // Удалена, так как API теперь на том же хосте
 
 // Утилиты
 function escapeHtml(text) {
@@ -96,7 +96,7 @@ function getBookIdFromUrl() {
 // Функция для получения данных книги через API
 async function fetchBookData(bookId) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/audiobooks/${bookId}`);
+        const response = await fetch(`/api/v1/audiobooks/${bookId}`);
         
         if (!response.ok) {
             if (response.status === 404) {

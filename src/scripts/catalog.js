@@ -32,7 +32,8 @@ class CatalogManager {
         try {
             this.showLoading();
             
-            const response = await fetch('http://localhost:8002/api/v1/audiobooks');
+            // Используем относительный путь
+            const response = await fetch('/api/v1/audiobooks');
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

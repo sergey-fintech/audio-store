@@ -13,14 +13,16 @@ from sqlalchemy.exc import SQLAlchemyError
 import uuid
 
 from database.models import Order, OrderItem
-from schemas import OrderCreateRequest, CartCalculationResponse
+from services.orders.schemas import OrderCreateRequest, CartCalculationResponse
+from services.shared_services.cart import CartService, CartItemInput, CartCalculationResult
 
 
 class OrderService:
     """Сервис для работы с заказами"""
     
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Session, cart_service: CartService):
         self.db = db_session
+        self.cart_service = cart_service
     
     def generate_order_number(self) -> str:
         """
@@ -33,43 +35,19 @@ class OrderService:
         unique_id = str(uuid.uuid4())[:8]
         return f"ORD-{timestamp}-{unique_id}"
     
-    async def validate_cart_with_cart_service(self, cart_items: List[dict]) -> CartCalculationResponse:
+    def validate_cart(self, cart_items: List[CartItemInput]) -> CartCalculationResult:
         """
-        Валидирует корзину через микросервис корзины.
+        Валидирует корзину через CartService.
         
         Args:
             cart_items: Список товаров в корзине
             
         Returns:
             Валидированная информация о корзине
-            
-        Raises:
-            HTTPException: Если сервис корзины недоступен или вернул ошибку
         """
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(
-                    "http://localhost:8004/api/v1/cart/calculate",
-                    json={"items": cart_items}
-                )
-                
-                if response.status_code == 200:
-                    return CartCalculationResponse(**response.json())
-                else:
-                    raise httpx.HTTPStatusError(
-                        f"Сервис корзины вернул ошибку: {response.status_code}",
-                        request=response.request,
-                        response=response
-                    )
-                    
-        except httpx.RequestError as e:
-            raise httpx.HTTPStatusError(
-                f"Не удалось подключиться к сервису корзины: {str(e)}",
-                request=None,
-                response=None
-            )
+        return self.cart_service.calculate_cart(cart_items)
     
-    def create_order_transaction(self, cart_response: CartCalculationResponse) -> Order:
+    def create_order_transaction(self, cart_response: CartCalculationResult) -> Order:
         """
         Создает заказ в транзакции.
         
@@ -97,10 +75,10 @@ class OrderService:
             for item in cart_response.items:
                 order_item = OrderItem(
                     order_id=order.id,
-                    audiobook_id=item['audiobook_id'],
-                    title=item['title'],
-                    price_per_unit=item['price_per_unit'],
-                    quantity=item['quantity']
+                    audiobook_id=item.audiobook_id,
+                    title=item.title,
+                    price_per_unit=item.price_per_unit,
+                    quantity=item.quantity
                 )
                 self.db.add(order_item)
             

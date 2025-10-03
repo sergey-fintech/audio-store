@@ -100,7 +100,7 @@ async function fetchCartData(cart) {
     console.log('Данные для отправки в API:', items);
     
     try {
-        const response = await fetch('http://localhost:8004/api/v1/cart/calculate', {
+        const response = await fetch('/api/v1/cart/calculate', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -183,7 +183,7 @@ function createCartItemElement(item) {
     cartItem.className = 'cart-item';
     cartItem.setAttribute('data-book-id', item.id);
     
-    const totalPrice = item.price * (item.quantity || 1);
+    const totalPrice = (item.price * (item.quantity || 1)).toFixed(2);
     
     cartItem.innerHTML = `
         <div class="cart-item-content">
@@ -216,7 +216,7 @@ function updateCartTotal() {
         return sum + (item.price * (item.quantity || 1));
     }, 0);
     
-    totalElement.textContent = `${total} ₽`;
+    totalElement.textContent = `${total.toFixed(2)} ₽`;
 }
 
 // Функция для обновления общей суммы с данными из API
@@ -224,7 +224,7 @@ function updateCartTotalWithData(total) {
     const totalElement = document.getElementById('cart-total-price');
     if (!totalElement) return;
     
-    totalElement.textContent = `${total} ₽`;
+    totalElement.textContent = `${Number(total).toFixed(2)} ₽`;
 }
 
 // Функция для инициализации кнопок корзины
@@ -393,7 +393,7 @@ async function checkout() {
         
         const tokenForRequest = accessToken || adminToken;
 
-        const response = await fetch('http://localhost:8003/api/v1/orders', {
+        const response = await fetch('/api/v1/orders', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

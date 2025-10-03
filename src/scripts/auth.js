@@ -1,8 +1,8 @@
 // Клиент API аутентификации
 // Отдельный модуль для работы с API аутентификации
 
-// Конфигурация API
-const AUTH_API_BASE_URL = 'http://localhost:8001';
+// Конфигурация
+const AUTH_API_BASE_URL = ''; // API теперь на том же хосте
 
 // Функция для показа уведомлений
 function showNotification(message, type = 'info') {
@@ -53,7 +53,7 @@ function showNotification(message, type = 'info') {
 // Функция для регистрации пользователя
 async function registerUser(email, password) {
     try {
-        const response = await fetch(`${AUTH_API_BASE_URL}/register`, {
+        const response = await fetch(`${AUTH_API_BASE_URL}/api/v1/auth/register`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -120,7 +120,7 @@ async function authenticateUser(email, password) {
         }
         
         // Обычная аутентификация через API
-        const response = await fetch(`${AUTH_API_BASE_URL}/token`, {
+        const response = await fetch(`${AUTH_API_BASE_URL}/api/v1/auth/token`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

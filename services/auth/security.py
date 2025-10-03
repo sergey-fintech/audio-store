@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+# from passlib.context import CryptContext # Временно отключаем passlib/bcrypt
 import os
+import hashlib # Используем стандартный hashlib
 
 # Настройки безопасности
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here-change-in-production")
@@ -10,35 +11,24 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Контекст для хеширования паролей
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") # Временно отключаем
 
+# --- Временное решение для диагностики ---
 
 def get_password_hash(password: str) -> str:
     """
-    Создает хеш пароля для безопасного хранения.
-    
-    Args:
-        password: Пароль в открытом виде
-        
-    Returns:
-        Хешированный пароль
+    Создает хеш пароля (SHA256) для диагностики.
+    НЕ ИСПОЛЬЗОВАТЬ В ПРОДАКШЕНЕ БЕЗ СОЛИ!
     """
-    return pwd_context.hash(password)
-
+    return hashlib.sha256(password.encode()).hexdigest()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
-    Проверяет соответствие пароля его хешу.
-    
-    Args:
-        plain_password: Пароль в открытом виде
-        hashed_password: Хешированный пароль
-        
-    Returns:
-        True, если пароли совпадают
+    Проверяет соответствие пароля его хешу (SHA256).
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    return get_password_hash(plain_password) == hashed_password
 
+# --- Конец временного решения ---
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """

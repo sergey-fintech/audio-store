@@ -1,0 +1,9 @@
+PassengerEnabled On
+PassengerPython /usr/bin/python
+PassengerFriendlyErrorPages on
+
+# АВТОРИЗАЦИЯ ПО ПАРОЛЮ
+AuthType Basic
+AuthName "Вход в систему"
+AuthUserFile /home/y/y90814l8/y90814l8.beget.tech/.htpasswd
+Require valid-user

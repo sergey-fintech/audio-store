@@ -43,7 +43,7 @@ class SearchManager {
         try {
             this.showLoading();
             
-            const response = await fetch('http://localhost:8002/api/v1/audiobooks');
+            const response = await fetch('/api/v1/audiobooks');
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -75,7 +75,8 @@ class SearchManager {
     }
     
     // Выполнение поиска
-    async performSearch() {
+    async performSearch(params) {
+        const searchParams = new URLSearchParams(params);
         if (!this.searchQuery.trim()) {
             this.loadBooks();
             return;
@@ -84,17 +85,8 @@ class SearchManager {
         try {
             this.showLoading();
             
-            // Используем API поиска
-            const searchParams = new URLSearchParams();
-            searchParams.append('q', this.searchQuery);
-            searchParams.append('limit', '100');
-            
-            const response = await fetch(`http://localhost:8002/api/v1/search?${searchParams.toString()}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            });
+            // Используем относительные пути
+            const response = await fetch(`/api/v1/search?${searchParams.toString()}`);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

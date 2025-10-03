@@ -16,15 +16,19 @@ import openai
 from dotenv import load_dotenv
 import json
 
-# Загружаем переменные окружения из корня проекта
-import os
+import sys
 from pathlib import Path
 
-# Определяем путь к корню проекта (на 2 уровня выше)
-project_root = Path(__file__).parent.parent.parent
-env_path = project_root / '.env'
+# Добавляем путь к корневой директории проекта
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(project_root))
 
-# Загружаем переменные окружения
+from services.shared_services.catalog import get_catalog_service, CatalogService
+from services.shared_services.prompts import get_prompts_service, PromptsService
+from database.models import Audiobook
+
+# Загружаем переменные окружения из корня проекта
+env_path = project_root / '.env'
 load_dotenv(env_path)
 
 # Инициализация FastAPI приложения
@@ -53,9 +57,9 @@ client = openai.OpenAI(
     },
 )
 
-# Конфигурация
-CATALOG_SERVICE_URL = "http://localhost:8002"  # URL микросервиса catalog
-PROMPTS_SERVICE_URL = "http://localhost:8006"  # URL микросервиса prompts-manager
+# Убираем старые URL, так как будем использовать прямые вызовы
+# CATALOG_SERVICE_URL = "http://localhost:8002"
+# PROMPTS_SERVICE_URL = "http://localhost:8006"
 
 # Доступные модели LLM
 AVAILABLE_MODELS = {
@@ -88,123 +92,49 @@ class DescriptionGenerationResponse(BaseModel):
     success: bool
 
 
-# Вспомогательные функции
-async def fetch_prompt_from_service(prompt_name: str) -> str:
-    """
-    Получает промпт из микросервиса prompts-manager.
-    Это взаимодействие между ограниченными контекстами (Anti-Corruption Layer).
-    """
-    try:
-        url = f"{PROMPTS_SERVICE_URL}/prompts/name/{prompt_name}"
-        print(f"🔍 Запрос к Prompts Service: {url}")
-        
-        def make_request():
-            return requests.get(url, timeout=10.0)
-        
-        response = await asyncio.to_thread(make_request)
-        print(f"📡 Ответ от Prompts Service: статус {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            prompt_content = data.get('content', '')
-            print(f"✅ Получен промпт '{prompt_name}' длиной {len(prompt_content)} символов")
-            return prompt_content
-        elif response.status_code == 404:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Промпт '{prompt_name}' не найден в prompts-manager"
-            )
-        else:
-            print(f"❌ Ошибка {response.status_code}: {response.text[:100]}")
-            raise HTTPException(
-                status_code=503,
-                detail=f"Prompts сервис вернул ошибку {response.status_code}: {response.text}"
-            )
-        
-    except requests.exceptions.Timeout:
-        raise HTTPException(
-            status_code=503,
-            detail="Prompts сервис не отвечает в течение 10 секунд"
-        )
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Ошибка подключения к prompts сервису: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Неожиданная ошибка при получении промпта: {str(e)}"
-        )
+# Вспомогательные функции (заменяем HTTP-вызовы на прямые)
 
-
-async def fetch_audiobooks_from_catalog() -> list:  
+def get_prompt_from_service(prompt_name: str, prompts_service: PromptsService) -> str:
     """
-    Получает список аудиокниг из микросервиса catalog.
-    Это взаимодействие между ограниченными контекстами (Anti-Corruption Layer).
+    Получает промпт из PromptsService.
     """
-    try:
-        # Используем правильный эндпоинт catalog сервиса (как в cart сервисе)
-        url = f"{CATALOG_SERVICE_URL}/api/v1/audiobooks"
-        print(f"🔍 Запрос к Catalog Service: {url}")
-        
-        # Используем requests в отдельном потоке для асинхронности
-        def make_request():
-            return requests.get(url, timeout=10.0)
-        
-        response = await asyncio.to_thread(make_request)
-        print(f"📡 Ответ от Catalog Service: статус {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Получены данные: {len(data) if isinstance(data, list) else 'не список'}")
-            if isinstance(data, list) and len(data) > 0:
-                return data
-            elif isinstance(data, dict):
-                print(f"📝 Ответ не список: {data}")
-        else:
-            print(f"❌ Ошибка {response.status_code}: {response.text[:100]}")
-            raise HTTPException(
-                status_code=503,
-                detail=f"Catalog сервис вернул ошибку {response.status_code}: {response.text}"
-            )
-        
-    except requests.exceptions.Timeout:
+    prompt = prompts_service.get_prompt_by_name(prompt_name)
+    if not prompt:
         raise HTTPException(
-            status_code=503,
-            detail="Catalog сервис не отвечает в течение 10 секунд"
+            status_code=404,
+            detail=f"Промпт '{prompt_name}' не найден"
         )
-    except requests.exceptions.HTTPError as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Catalog сервис вернул ошибку {e.response.status_code}: {e.response.text}"
-        )
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Ошибка подключения к catalog сервису: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Неожиданная ошибка: {str(e)}"
-        )
+    return prompt.content
 
+def get_audiobooks_from_catalog(catalog_service: CatalogService) -> list:  
+    """
+    Получает список аудиокниг из CatalogService.
+    """
+    # Предполагаем, что сервис каталога может вернуть все книги
+    # Если нужна пагинация, здесь ее нужно будет реализовать
+    audiobooks = catalog_service.audiobook_repo.get_all()
+    # Конвертируем в словари для дальнейшего использования
+    return [
+        {
+            "id": ab.id,
+            "title": ab.title,
+            "author": {"name": ab.author.name} if ab.author else None,
+            "description": ab.description,
+            "categories": [{"name": cat.name} for cat in ab.categories]
+        }
+        for ab in audiobooks
+    ]
 
-async def create_system_prompt(audiobooks: list, user_prompt: str) -> str:
+def create_system_prompt(audiobooks: list, user_prompt: str, prompts_service: PromptsService) -> str:
     """
     Создает системный промпт для LLM, используя промпт из prompts-manager.
-    Это наша интеллектуальная собственность - Core Domain логика.
     """
-    # Получаем базовый промпт из prompts-manager
-    base_prompt = await fetch_prompt_from_service("recommendation_prompt")
+    base_prompt = get_prompt_from_service("recommendation_prompt", prompts_service)
     
-    # Упрощаем список книг до простого текста (название и автор)
     books_list_text = "\n".join(
         [f"- {book['title']} (Автор: {book['author']['name'] if book.get('author') else 'Неизвестен'})" for book in audiobooks]
     )
     
-    # Форматируем промпт с упрощенными данными
     system_prompt = base_prompt.format(
         user_preferences=user_prompt,
         available_books=books_list_text
@@ -212,69 +142,35 @@ async def create_system_prompt(audiobooks: list, user_prompt: str) -> str:
     
     return system_prompt
 
-
-async def fetch_audiobook_by_id(product_id: int) -> dict:
+def get_audiobook_by_id(product_id: int, catalog_service: CatalogService) -> dict:
     """
-    Получает данные конкретной аудиокниги по ID из микросервиса catalog.
-    Это взаимодействие между ограниченными контекстами (Anti-Corruption Layer).
+    Получает данные конкретной аудиокниги по ID из CatalogService.
     """
-    try:
-        url = f"{CATALOG_SERVICE_URL}/api/v1/audiobooks/{product_id}"
-        print(f"🔍 Запрос к Catalog Service для книги {product_id}: {url}")
-        
-        def make_request():
-            return requests.get(url, timeout=10.0)
-        
-        response = await asyncio.to_thread(make_request)
-        print(f"📡 Ответ от Catalog Service: статус {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Получены данные книги: {data.get('title', 'Без названия')}")
-            return data
-        elif response.status_code == 404:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Аудиокнига с ID {product_id} не найдена"
-            )
-        else:
-            print(f"❌ Ошибка {response.status_code}: {response.text[:100]}")
-            raise HTTPException(
-                status_code=503,
-                detail=f"Catalog сервис вернул ошибку {response.status_code}: {response.text}"
-            )
-        
-    except requests.exceptions.Timeout:
+    audiobook = catalog_service.get_audiobook_by_id(product_id)
+    if not audiobook:
         raise HTTPException(
-            status_code=503,
-            detail="Catalog сервис не отвечает в течение 10 секунд"
+            status_code=404,
+            detail=f"Аудиокнига с ID {product_id} не найдена"
         )
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Ошибка подключения к catalog сервису: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Неожиданная ошибка: {str(e)}"
-        )
+    return {
+        "id": audiobook.id,
+        "title": audiobook.title,
+        "author": {"name": audiobook.author.name} if audiobook.author else None,
+        "description": audiobook.description,
+        "categories": [{"name": cat.name} for cat in audiobook.categories]
+    }
 
-
-async def create_description_prompt(audiobook: dict) -> str:
+def create_description_prompt(audiobook: dict, prompts_service: PromptsService) -> str:
     """
     Создает промпт для генерации описания аудиокниги, используя промпт из prompts-manager.
-    Это наша интеллектуальная собственность - Core Domain логика.
     """
-    # Получаем базовый промпт из prompts-manager
-    base_prompt = await fetch_prompt_from_service("description_prompt")
+    base_prompt = get_prompt_from_service("description_prompt", prompts_service)
     
     title = audiobook.get('title', 'Без названия')
     author_name = audiobook.get('author', {}).get('name', 'Неизвестен') if audiobook.get('author') else 'Неизвестен'
     categories = [cat.get('name', '') for cat in audiobook.get('categories', [])]
     current_description = audiobook.get('description', '')
     
-    # Форматируем промпт с данными
     system_prompt = base_prompt.format(
         title=title,
         author=author_name,
@@ -284,60 +180,12 @@ async def create_description_prompt(audiobook: dict) -> str:
     
     return system_prompt
 
-
-async def update_audiobook_description(product_id: int, description: str) -> bool:
+def update_audiobook_description(product_id: int, description: str, catalog_service: CatalogService) -> bool:
     """
-    Обновляет описание аудиокниги в микросервисе catalog.
-    Это взаимодействие между ограниченными контекстами (Anti-Corruption Layer).
-    
-    Использует PUT метод с полной схемой AudiobookUpdate.
+    Обновляет описание аудиокниги в CatalogService.
     """
-    try:
-        url = f"{CATALOG_SERVICE_URL}/api/v1/audiobooks/{product_id}"
-        print(f"🔄 Обновление описания книги {product_id}: {url}")
-        
-        # Создаем payload согласно схеме AudiobookUpdate
-        # Все поля опциональны, передаем только description
-        payload = {
-            "description": description
-        }
-        
-        def make_request():
-            return requests.put(url, json=payload, timeout=10.0)
-        
-        response = await asyncio.to_thread(make_request)
-        print(f"📡 Ответ от Catalog Service при обновлении: статус {response.status_code}")
-        
-        if response.status_code == 200:
-            print(f"✅ Описание успешно обновлено для книги {product_id}")
-            return True
-        elif response.status_code == 404:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Аудиокнига с ID {product_id} не найдена"
-            )
-        else:
-            print(f"❌ Ошибка при обновлении {response.status_code}: {response.text[:100]}")
-            raise HTTPException(
-                status_code=503,
-                detail=f"Catalog сервис вернул ошибку при обновлении {response.status_code}: {response.text}"
-            )
-        
-    except requests.exceptions.Timeout:
-        raise HTTPException(
-            status_code=503,
-            detail="Catalog сервис не отвечает в течение 10 секунд"
-        )
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Ошибка подключения к catalog сервису: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Неожиданная ошибка при обновлении: {str(e)}"
-        )
+    updated_audiobook = catalog_service.update_audiobook(product_id, description=description)
+    return updated_audiobook is not None
 
 
 # API эндпоинты
@@ -384,8 +232,11 @@ async def generate_recommendations(request: RecommendationRequest):
     4. Возвращает ответ от модели "как есть"
     """
     
-    # 1. Получаем каталог аудиокниг из catalog микросервиса (Anti-Corruption Layer)
-    audiobooks = await fetch_audiobooks_from_catalog()
+    catalog_service = get_catalog_service()
+    prompts_service = get_prompts_service()
+
+    # 1. Получаем каталог аудиокниг
+    audiobooks = get_audiobooks_from_catalog(catalog_service)
     
     if not audiobooks:
         raise HTTPException(
@@ -393,8 +244,8 @@ async def generate_recommendations(request: RecommendationRequest):
             detail="Каталог аудиокниг пуст"
         )
     
-    # 2. Создаем системный промпт (наша Core Domain логика)
-    system_prompt = await create_system_prompt(audiobooks, request.prompt)
+    # 2. Создаем системный промпт
+    system_prompt = create_system_prompt(audiobooks, request.prompt, prompts_service)
     
     # 3. Вызываем LLM через OpenRouter
     try:
@@ -503,16 +354,19 @@ async def generate_description(product_id: int, request: DescriptionGenerationRe
     Это пример оркестрации между ограниченными контекстами.
     """
     
+    catalog_service = get_catalog_service()
+    prompts_service = get_prompts_service()
+
     try:
         print(f"🎯 Начинаем оркестрацию генерации описания для книги {product_id}")
         
         # Шаг 1: Получаем данные книги из catalog сервиса
         print(f"📖 Шаг 1: Получение данных книги {product_id}")
-        audiobook = await fetch_audiobook_by_id(product_id)
+        audiobook = get_audiobook_by_id(product_id, catalog_service)
         
         # Шаг 2: Создаем промпт для LLM
         print(f"🤖 Шаг 2: Создание промпта для LLM")
-        system_prompt = await create_description_prompt(audiobook)
+        system_prompt = create_description_prompt(audiobook, prompts_service)
         
         # Шаг 3: Вызываем LLM для генерации описания
         print(f"⚡ Шаг 3: Генерация описания с помощью LLM")
@@ -603,7 +457,7 @@ async def generate_description(product_id: int, request: DescriptionGenerationRe
         
         # Шаг 4: Обновляем описание в catalog сервисе
         print(f"🔄 Шаг 4: Обновление описания в catalog сервисе")
-        update_success = await update_audiobook_description(product_id, generated_description)
+        update_success = update_audiobook_description(product_id, generated_description, catalog_service)
         
         if not update_success:
             raise HTTPException(

@@ -231,7 +231,7 @@ async function updateUserName(profileBlock) {
         if (accessToken) {
             try {
                 // Получаем данные пользователя из API
-                const response = await fetch('http://localhost:8001/users/me', {
+                const response = await fetch('/api/v1/users/me', {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`
                     }

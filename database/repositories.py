@@ -241,6 +241,23 @@ class AudiobookRepository:
             joinedload(Audiobook.categories)
         ).filter(Audiobook.id == audiobook_id).first()
     
+    def get_by_ids(self, audiobook_ids: List[int]) -> List[Audiobook]:
+        """
+        Получает аудиокниги по списку ID.
+        
+        Args:
+            audiobook_ids: Список ID аудиокниг
+            
+        Returns:
+            Список объектов Audiobook
+        """
+        if not audiobook_ids:
+            return []
+        return self.session.query(Audiobook).options(
+            joinedload(Audiobook.author),
+            joinedload(Audiobook.categories)
+        ).filter(Audiobook.id.in_(audiobook_ids)).all()
+    
     def get_all(self, limit: int = None, offset: int = None) -> List[Audiobook]:
         """
         Получает все аудиокниги с пагинацией.

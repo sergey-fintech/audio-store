@@ -12,18 +12,30 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 from contextlib import contextmanager
 import logging
+from dotenv import load_dotenv
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Конфигурация базы данных
+# Загружаем переменные окружения из .env файла в корне проекта
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATABASE_URL = "mysql+pymysql://app_user:strong_password_123@127.0.0.1:3306/audio_store"
+dotenv_path = os.path.join(_project_root, '.env')
+if os.path.exists(dotenv_path):
+    load_dotenv(dotenv_path)
+    logger.info(".env файл загружен")
+
+# Конфигурация базы данных
+# Сначала пытаемся получить из переменных окружения, потом используем значение по умолчанию для локальной разработки
+DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://app_user:strong_password_123@127.0.0.1:3306/audio_store")
 
 # Глобальные переменные для движка и фабрики сессий
 _engine: Optional[create_engine] = None
 _session_factory: Optional[sessionmaker] = None
+
+# Создаем SessionLocal на уровне модуля
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def get_database_url() -> str:

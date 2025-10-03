@@ -1,0 +1,31 @@
+# Этот файл — пример конфигурации NGINX для хостинга Beget.
+# Его содержимое нужно либо скопировать в файл nginx.conf в корне сайта,
+# либо вставить в соответствующее поле в панели управления Beget.
+
+# Перенаправляем запросы к статическим файлам напрямую, минуя бэкенд
+location ~ ^/(styles|scripts|assets|images)/ {
+  root /home/y/y90814l8/y90814l8.beget.tech/src; # Замените на ваш путь
+  expires 1d;
+  access_log off;
+}
+
+location ~* \.(?:ico|css|js|gif|jpe?g|png)$ {
+  root /home/y/y90814l8/y90814l8.beget.tech/src; # Замените на ваш путь
+  expires 1d;
+  access_log off;
+}
+
+# Все остальные запросы передаем на WSGI-приложение
+location / {
+  try_files $uri @app;
+}
+
+location @app {
+  # Эти параметры обычно уже настроены на Beget для Python-сайтов
+  # proxy_pass http://unix:/var/run/y90814l8.sock; # Пример пути к сокету
+  # proxy_set_header Host $host;
+  # proxy_set_header X-Real-IP $remote_addr;
+  # proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  # proxy_set_header X-Forwarded-Proto $scheme;
+}
+

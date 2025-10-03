@@ -17,8 +17,13 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-import httpx
 from contextlib import asynccontextmanager
+
+# Добавляем путь к корневой директории проекта
+import sys
+from pathlib import Path
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(project_root))
 
 from database.connection import get_db
 from database.models import Order, OrderItem
@@ -30,6 +35,8 @@ from schemas import (
     CartCalculationResponse
 )
 from services import OrderService
+from services.shared_services.cart import CartService, get_cart_service
+from services.shared_services.cart import CartItemInput as SharedCartItemInput
 
 
 @asynccontextmanager
@@ -100,25 +107,16 @@ async def create_order(
     """
     try:
         # Создаем сервис для работы с заказами
-        order_service = OrderService(db)
+        order_service = OrderService(db, get_cart_service())
         
-        # Подготавливаем данные для отправки в сервис корзины
+        # Подготавливаем данные для сервиса корзины
         cart_items = [
-            {
-                "audiobook_id": item.audiobook_id,
-                "quantity": item.quantity
-            }
+            SharedCartItemInput(audiobook_id=item.audiobook_id, quantity=item.quantity)
             for item in request.items
         ]
         
-        # Валидируем корзину через микросервис корзины
-        try:
-            cart_response = await order_service.validate_cart_with_cart_service(cart_items)
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=503,
-                detail=f"Сервис корзины недоступен: {str(e)}"
-            )
+        # Валидируем корзину через CartService
+        cart_response = order_service.validate_cart(cart_items)
         
         # Проверяем, что корзина не пустая
         if not cart_response.items:

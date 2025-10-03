@@ -7,11 +7,17 @@ fastapi>=0.68.0
 uvicorn[standard]>=0.15.0
 pydantic>=1.8.0
 
+# Flask для WSGI-хостинга
+Flask>=2.0.0
+
 # Дополнительные утилиты
 python-multipart>=0.0.5
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 psutil>=5.8.0
+
+# Для работы с переменными окружения
+python-dotenv>=0.19.0
 
 # Для разработки и тестирования
 pytest>=6.2.0

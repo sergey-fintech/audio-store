@@ -58,9 +58,9 @@ function logoutAdmin() {
 }
 
 // Конфигурация API
-const API_BASE_URL = 'http://localhost:8002'; // Порт каталога товаров
-const AI_RECOMMENDER_URL = 'http://localhost:8005'; // Порт AI-рекомендатора
-const PROMPTS_MANAGER_URL = 'http://localhost:8006'; // Порт менеджера промптов
+const API_BASE_URL = ''; // Все запросы идут на тот же хост
+const AI_RECOMMENDER_URL = ''; // Все запросы идут на тот же хост
+const PROMPTS_MANAGER_URL = ''; // Все запросы идут на тот же хост
 
 // Элементы DOM
 const productForm = document.getElementById('product-form');
@@ -870,7 +870,7 @@ async function fetchAndRenderPrompts() {
         // Показываем индикатор загрузки
         promptsList.innerHTML = '<div class="loading">Загрузка промптов...</div>';
         
-        const response = await fetch(`${PROMPTS_MANAGER_URL}/prompts`);
+        const response = await fetch(`${PROMPTS_MANAGER_URL}/api/v1/prompts`);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -962,7 +962,7 @@ async function savePrompt(promptId, cardElement) {
         saveBtn.disabled = true;
         saveBtn.textContent = 'Сохранение...';
         
-        const response = await fetch(`${PROMPTS_MANAGER_URL}/prompts/${promptId}`, {
+        const response = await fetch(`${PROMPTS_MANAGER_URL}/api/v1/prompts/${promptId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -1006,7 +1006,7 @@ async function togglePromptStatus(promptId, cardElement) {
         toggleBtn.textContent = 'Обновление...';
         
         const endpoint = newStatus === 'true' ? 'activate' : 'deactivate';
-        const response = await fetch(`${PROMPTS_MANAGER_URL}/prompts/${promptId}/${endpoint}`, {
+        const response = await fetch(`${PROMPTS_MANAGER_URL}/api/v1/prompts/${promptId}/${endpoint}`, {
             method: 'PUT'
         });
         
